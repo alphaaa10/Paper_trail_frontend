@@ -1,0 +1,157 @@
+# ------------------------------------------------------------
+# OS / File Explorer
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100/
+.Trashes/
+._*
+
+# ------------------------------------------------------------
+# Editor / IDE
+# ------------------------------------------------------------
+.vscode/
+.idea/
+*.iml
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+*.swp
+*.swo
+*~
+.history/
+
+# ------------------------------------------------------------
+# Logs and runtime dumps
+# ------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.pid
+*.seed
+*.pid.lock
+*.out
+*.err
+*.stackdump
+
+# ------------------------------------------------------------
+# Environment / secrets
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+*.secret
+*.secrets
+
+# ------------------------------------------------------------
+# Node.js / Frontend
+# ------------------------------------------------------------
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Build output / cache
+/dist/
+/build/
+/.cache/
+/.parcel-cache/
+/.turbo/
+/.next/
+/.nuxt/
+/.svelte-kit/
+coverage/
+*.tsbuildinfo
+vite.svg
+.eslintcache
+.stylelintcache
+
+# ------------------------------------------------------------
+# Python / Backend
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python packaging
+.Python
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
+*.egg
+build/
+dist/
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
+
+# ------------------------------------------------------------
+# Backend data artifacts (generated)
+# ------------------------------------------------------------
+data/pdf/
+data/metadata/
+data/extracted/
+data/reports/
+data/tmp/
+
+# Workspace backend artifacts
+tbackend/data/
+tbackend/logs/
+tbackend/tmp/
+
+# Local SQLite/state files
+*.sqlite
+*.sqlite3
+
+# ------------------------------------------------------------
+# Temporary / archives / binaries
+# ------------------------------------------------------------
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# ------------------------------------------------------------
+# Misc project-local caches
+# ------------------------------------------------------------
+.tmp/
+tmp/
+.cache-loader/
