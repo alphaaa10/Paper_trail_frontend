@@ -161,7 +161,7 @@ export function AIAssistant() {
         <h1 className="text-2xl font-semibold text-gray-900">AI Research Assistant</h1>
         <p className="text-gray-600 mt-1">Citation-aware Q&A over extracted papers with explicit claim traceability</p>
         {statusText && (
-          <p className="text-sm text-[#1a3a2e] mt-2">{statusText}</p>
+          <p className="text-sm text-[#0066ff] mt-2">{statusText}</p>
         )}
       </div>
 
@@ -171,7 +171,7 @@ export function AIAssistant() {
           <button
             key={index}
             onClick={() => handleQuickAction(action.prompt)}
-            className="p-3 bg-white border border-gray-200 hover:bg-gray-50 hover:border-[#1a3a2e] transition-colors text-left"
+            className="p-3 bg-white border border-gray-200 hover:bg-gray-50 hover:border-[#0066ff] transition-colors text-left"
           >
             <div className="text-sm font-medium text-gray-900">{action.label}</div>
           </button>
@@ -182,7 +182,7 @@ export function AIAssistant() {
       <Card className="h-[600px] flex flex-col overflow-hidden">
         <CardHeader className="border-b border-gray-200">
           <CardTitle className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-[#1a3a2e]" />
+            <Bot className="w-5 h-5 text-[#0066ff]" />
             Chat Interface
           </CardTitle>
         </CardHeader>
@@ -195,14 +195,14 @@ export function AIAssistant() {
                 className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {message.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-[#1a3a2e] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 bg-[#0066ff] rounded-lg flex items-center justify-center flex-shrink-0">
                     <Bot className="w-5 h-5 text-white" />
                   </div>
                 )}
                 <div
                   className={`max-w-[80%] rounded-lg p-4 ${
                     message.role === 'user'
-                      ? 'bg-[#1a3a2e] text-white'
+                      ? 'bg-[#0066ff] text-white'
                       : 'bg-gray-100 text-gray-900'
                   }`}
                 >
@@ -277,7 +277,7 @@ export function AIAssistant() {
                   )}
                   <div
                     className={`text-xs mt-2 ${
-                      message.role === 'user' ? 'text-[#a3c4b5]' : 'text-gray-500'
+                      message.role === 'user' ? 'text-[#99c2ff]' : 'text-gray-500'
                     }`}
                   >
                     {message.timestamp.toLocaleTimeString()}
@@ -293,7 +293,7 @@ export function AIAssistant() {
             
             {isTyping && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 bg-[#1a3a2e] rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-[#0066ff] rounded-lg flex items-center justify-center flex-shrink-0">
                   <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div className="bg-gray-100 rounded-lg p-4">
@@ -315,7 +315,7 @@ export function AIAssistant() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
                 placeholder="Ask any question about your extracted papers..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a2e]"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
                 disabled={isTyping}
               />
               <input
@@ -323,13 +323,13 @@ export function AIAssistant() {
                 value={paperIdsInput}
                 onChange={(e) => setPaperIdsInput(e.target.value)}
                 placeholder="Optional paper_ids: p1, p2"
-                className="w-64 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a3a2e]"
+                className="w-64 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
                 disabled={isTyping}
               />
               <button
                 onClick={() => handleSend(input)}
                 disabled={!input.trim() || isTyping}
-                className="px-6 py-3 bg-[#1a3a2e] text-white rounded-lg hover:bg-[#234136] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-3 bg-[#0066ff] text-white rounded-lg hover:bg-[#0052cc] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="w-5 h-5" />
               </button>

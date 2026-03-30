@@ -80,7 +80,7 @@ export function Reports() {
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 px-6 py-3 bg-[#1a3a2e] text-white hover:bg-[#234136] transition-colors"
+          className="flex items-center gap-2 px-6 py-3 bg-[#0066ff] text-white hover:bg-[#0052cc] transition-colors"
         >
           <Download className="w-5 h-5" />
           Export Report
@@ -403,7 +403,7 @@ export function Reports() {
           <div className="space-y-3">
             {recommendations.map((item, index) => (
               <div key={item.title} className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-[#1a3a2e] text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 bg-[#0066ff] text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="text-sm font-medium">{index + 1}</span>
                 </div>
                 <div>

@@ -9,9 +9,9 @@ interface StatusBadgeProps {
 
 const statusConfig = {
   healthy: {
-    color: 'bg-green-100 text-green-700 border-green-200',
+    color: 'bg-primary/15 text-foreground border-primary/35',
     icon: Circle,
-    iconColor: 'text-green-500',
+    iconColor: 'text-primary',
     label: 'System Healthy',
   },
   warning: {
@@ -27,21 +27,21 @@ const statusConfig = {
     label: 'Error',
   },
   idle: {
-    color: 'bg-gray-100 text-gray-700 border-gray-200',
+    color: 'bg-slate-100 text-slate-700 border-slate-200',
     icon: Circle,
-    iconColor: 'text-gray-400',
+    iconColor: 'text-slate-400',
     label: 'Idle',
   },
   running: {
-    color: 'bg-blue-100 text-blue-700 border-blue-200',
+    color: 'bg-primary/15 text-foreground border-primary/35',
     icon: Circle,
-    iconColor: 'text-blue-500 animate-pulse',
+    iconColor: 'text-primary animate-pulse',
     label: 'Running',
   },
   completed: {
-    color: 'bg-green-100 text-green-700 border-green-200',
+    color: 'bg-primary/15 text-foreground border-primary/35',
     icon: Circle,
-    iconColor: 'text-green-500',
+    iconColor: 'text-primary',
     label: 'Completed',
   },
 };

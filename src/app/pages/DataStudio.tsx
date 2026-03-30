@@ -165,7 +165,7 @@ export function DataStudio() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="e.g., neural networks, AI safety, machine learning"
-                className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#1a3a2e]"
+                className="w-full px-4 py-2 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
               />
             </div>
             
@@ -186,7 +186,7 @@ export function DataStudio() {
             <button
               onClick={handleCrawl}
               disabled={isCrawling || !query}
-              className="flex items-center gap-2 px-6 py-3 bg-[#1a3a2e] text-white hover:bg-[#234136] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-6 py-3 bg-[#0066ff] text-white hover:bg-[#0052cc] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               {isCrawling ? (
                 <>
@@ -227,7 +227,7 @@ export function DataStudio() {
             <CardTitle>Papers ({papers.length})</CardTitle>
             <button
               onClick={handleExtractAll}
-              className="flex items-center gap-2 px-4 py-2 bg-[#1a3a2e] text-white rounded-lg hover:bg-[#234136] transition-colors text-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-[#0066ff] text-white rounded-lg hover:bg-[#0052cc] transition-colors text-sm"
             >
               <Download className="w-4 h-4" />
               Extract All

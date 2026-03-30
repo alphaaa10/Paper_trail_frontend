@@ -128,40 +128,40 @@ export function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button 
               onClick={() => navigate('/data-studio')}
-              className="flex items-center gap-4 p-4 bg-[#1a3a2e] text-white hover:bg-[#234136] transition-colors"
+              className="flex items-center gap-4 p-4 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <div className="w-10 h-10 bg-white/10 flex items-center justify-center">
                 <Play className="w-5 h-5" />
               </div>
               <div className="text-left">
                 <div className="font-medium">Crawl Papers</div>
-                <div className="text-sm text-[#a3c4b5]">Start new crawl</div>
+                <div className="text-sm text-primary-foreground/70">Start new crawl</div>
               </div>
             </button>
 
             <button 
               onClick={() => navigate('/investigation')}
-              className="flex items-center gap-4 p-4 bg-[#1a3a2e] text-white hover:bg-[#234136] transition-colors"
+              className="flex items-center gap-4 p-4 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <div className="w-10 h-10 bg-white/10 flex items-center justify-center">
                 <Search className="w-5 h-5" />
               </div>
               <div className="text-left">
                 <div className="font-medium">Run Analysis</div>
-                <div className="text-sm text-[#a3c4b5]">Open investigation</div>
+                <div className="text-sm text-primary-foreground/70">Open investigation</div>
               </div>
             </button>
 
             <button 
               onClick={() => navigate('/reports')}
-              className="flex items-center gap-4 p-4 bg-[#1a3a2e] text-white hover:bg-[#234136] transition-colors"
+              className="flex items-center gap-4 p-4 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <div className="w-10 h-10 bg-white/10 flex items-center justify-center">
                 <FileBarChart className="w-5 h-5" />
               </div>
               <div className="text-left">
                 <div className="font-medium">Generate Report</div>
-                <div className="text-sm text-[#a3c4b5]">Create analysis</div>
+                <div className="text-sm text-primary-foreground/70">Create analysis</div>
               </div>
             </button>
           </div>

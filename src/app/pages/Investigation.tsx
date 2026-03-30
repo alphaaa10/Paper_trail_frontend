@@ -245,30 +245,27 @@ export function Investigation() {
   };
 
   function getCitationPdfUrls(citationPayload: CitationResponse): string[] {
-    const rawPath = (citationPayload.pdf_url || citationPayload.pdf_path || '').trim();
+    const pdfUrl = (citationPayload.pdf_url || '').trim();
+    if (pdfUrl) {
+      return [pdfUrl];
+    }
+
+    const rawPath = (citationPayload.pdf_path || '').trim();
     if (!rawPath) {
       return [];
     }
 
-    if (/^https?:\/\//i.test(rawPath) || /^file:\/\//i.test(rawPath)) {
-      const normalizedRaw = rawPath.replace(/\\/g, '/');
-      const fileName = normalizedRaw.split('/').pop() || '';
-      const backendCandidate = fileName
-        ? `${API_BASE_URL}/data/pdf/${encodeURIComponent(fileName)}`
-        : '';
-      return [backendCandidate, normalizedRaw].filter(Boolean);
-    }
-
     const normalizedPath = rawPath.replace(/\\/g, '/');
-    if (/^[A-Za-z]:\//.test(normalizedPath)) {
-      const fileName = normalizedPath.split('/').pop() || '';
-      const backendCandidate = fileName
-        ? `${API_BASE_URL}/data/pdf/${encodeURIComponent(fileName)}`
-        : '';
-      return [backendCandidate, `file:///${normalizedPath}`].filter(Boolean);
+    if (/^https?:\/\//i.test(normalizedPath)) {
+      return [normalizedPath];
     }
 
-    return [normalizedPath];
+    const fileName = normalizedPath.split('/').pop() || '';
+    if (!fileName) {
+      return [];
+    }
+
+    return [`${API_BASE_URL}/pdf/${encodeURIComponent(fileName)}`];
   }
 
   function openCitationPdf(citationPayload: CitationResponse, targetWindow?: Window | null): boolean {
@@ -361,7 +358,7 @@ export function Investigation() {
                   type="checkbox"
                   checked={selectedPapers.includes(paper.paper_id)}
                   onChange={() => togglePaper(paper.paper_id)}
-                  className="w-4 h-4 text-[#1a3a2e] rounded focus:ring-[#1a3a2e]"
+                  className="w-4 h-4 text-[#0066ff] rounded focus:ring-[#0066ff]"
                 />
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{paper.title}</div>
@@ -375,7 +372,7 @@ export function Investigation() {
             <button
               onClick={() => void runDebate()}
               disabled={selectedPapers.length < 2 || isDebating}
-              className="flex items-center gap-2 px-6 py-3 bg-[#1a3a2e] text-white rounded-lg hover:bg-[#234136] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-6 py-3 bg-[#0066ff] text-white rounded-lg hover:bg-[#0052cc] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               {isDebating ? (
                 <>
@@ -449,6 +446,8 @@ export function Investigation() {
               {multiDebateResult ? multiDebateResult.pair_debates.map((pair, pairIndex) => {
                 const paperALabel = getDebatePaperLabel(pair.paper_A) || pair.paper_A.id || 'Paper A';
                 const paperBLabel = getDebatePaperLabel(pair.paper_B) || pair.paper_B.id || 'Paper B';
+                const paperOneSpeaker = `Paper 1 - ${paperALabel}`;
+                const paperTwoSpeaker = `Paper 2 - ${paperBLabel}`;
                 const pairSummary = typeof pair.verdict_card.narrative === 'string'
                   ? pair.verdict_card.narrative
                   : `Pair ${pairIndex + 1}: ${paperALabel} vs ${paperBLabel}`;
@@ -461,6 +460,7 @@ export function Investigation() {
                 const mainDebateText = pair.live_debate
                   ? (liveText || contradictionSnippets || pairSummary)
                   : pairSummary;
+                const parsedMainTurns = parseDebateTurns(mainDebateText);
                 const modeBadgeText = liveMode || 'unknown';
                 const axisEntries = Object.entries(pair.axes_analysis);
 
@@ -484,9 +484,27 @@ export function Investigation() {
                       </div>
                     )}
 
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-                      {mainDebateText}
-                    </p>
+                    <div className="space-y-2">
+                      {parsedMainTurns.map((turn, turnIndex) => {
+                        const isA = turn.label.startsWith('A');
+                        const isB = turn.label.startsWith('B');
+                        const speaker = isA ? paperOneSpeaker : isB ? paperTwoSpeaker : 'Moderator';
+                        const bubbleStyle = isA
+                          ? 'bg-blue-50 border-blue-200'
+                          : isB
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-slate-50 border-slate-200';
+
+                        return (
+                          <div key={`${pairIndex}-turn-${turnIndex}`} className={`rounded-md border p-3 ${bubbleStyle}`}>
+                            <div className="text-xs font-semibold tracking-wide text-gray-600 uppercase mb-1">
+                              {speaker}
+                            </div>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{turn.content}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
 
                     <details className="mt-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
                       <summary className="cursor-pointer text-sm font-medium text-gray-700">
@@ -498,9 +516,9 @@ export function Investigation() {
                         </div>
                         {(pair.contradiction_report?.claim_level_contradictions || []).map((item, itemIndex) => (
                           <div key={`${pairIndex}-claim-${itemIndex}`} className="rounded-md border border-gray-200 bg-white p-3">
-                            <div className="text-xs text-gray-600 mb-1">{paperALabel}</div>
+                            <div className="text-xs text-gray-600 mb-1">{paperOneSpeaker}</div>
                             <p className="text-sm text-gray-800">{item.paper_A_claim}</p>
-                            <div className="text-xs text-gray-600 mt-2 mb-1">{paperBLabel}</div>
+                            <div className="text-xs text-gray-600 mt-2 mb-1">{paperTwoSpeaker}</div>
                             <p className="text-sm text-gray-800">{item.paper_B_claim}</p>
                             <div className="mt-2 text-xs text-gray-600">Reasoning: {item.logical_reasoning}</div>
                             <div className="text-xs text-gray-500">Confidence: {item.confidence}</div>
@@ -518,9 +536,9 @@ export function Investigation() {
                           <div key={`${pairIndex}-${axisKey}`} className="rounded-md border border-gray-200 bg-white p-3">
                             <div className="text-sm font-medium text-gray-800">{axis.description || axis.axis || axisKey}</div>
                             <div className="text-xs text-gray-500 mt-1">Winner: {axis.winner} | Score diff: {axis.score_diff}</div>
-                            <div className="mt-2 text-xs text-gray-600">{paperALabel} premise:</div>
+                            <div className="mt-2 text-xs text-gray-600">{paperOneSpeaker} premise:</div>
                             <p className="text-sm text-gray-800">{axis.logical_reasoning?.premise_A || 'Not provided.'}</p>
-                            <div className="mt-2 text-xs text-gray-600">{paperBLabel} premise:</div>
+                            <div className="mt-2 text-xs text-gray-600">{paperTwoSpeaker} premise:</div>
                             <p className="text-sm text-gray-800">{axis.logical_reasoning?.premise_B || 'Not provided.'}</p>
                             <div className="mt-2 text-xs text-gray-600">Inference:</div>
                             <p className="text-sm text-gray-800">{axis.logical_reasoning?.inference || 'Not provided.'}</p>
@@ -548,7 +566,7 @@ export function Investigation() {
                         void handleChatMessageClick(message);
                       }
                     }}
-                    className={`w-full text-left rounded-lg border p-4 transition-all ${canCite ? 'hover:ring-2 hover:ring-[#1a3a2e] cursor-pointer' : 'cursor-default'} ${cardStyle}`}
+                    className={`w-full text-left rounded-lg border p-4 transition-all ${canCite ? 'hover:ring-2 hover:ring-[#0066ff] cursor-pointer' : 'cursor-default'} ${cardStyle}`}
                     title={canCite ? 'Click to view citation in PDF' : 'No citation available for this message'}
                   >
                     <div className="flex items-center justify-between gap-3 mb-2">
@@ -613,7 +631,7 @@ export function Investigation() {
                 <button
                   type="button"
                   onClick={() => openCitationPdf(citation)}
-                  className="px-3 py-2 text-sm bg-[#1a3a2e] text-white rounded hover:bg-[#234136] transition-colors"
+                  className="px-3 py-2 text-sm bg-[#0066ff] text-white rounded hover:bg-[#0052cc] transition-colors"
                 >
                   Open PDF at Page {citation.page_number}
                 </button>

@@ -133,7 +133,7 @@ export function GraphAnalysis() {
             <button
               onClick={loadHeatmap}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-[#1a3a2e] text-white hover:bg-[#234136] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-[#0066ff] text-white hover:bg-[#0052cc] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
             >
               {isLoading ? (
                 <>
@@ -180,7 +180,7 @@ export function GraphAnalysis() {
                         key={`${paperId}-${targetPaperId}`}
                         onClick={() => handleCellClick(i, j)}
                         className={`w-24 h-16 border border-gray-300 flex items-center justify-center ${getColor(count)} ${
-                          i !== j && count > 0 ? 'cursor-pointer hover:ring-2 hover:ring-[#1a3a2e] transition-all' : ''
+                          i !== j && count > 0 ? 'cursor-pointer hover:ring-2 hover:ring-[#0066ff] transition-all' : ''
                         }`}
                       >
                         {count > 0 && (
