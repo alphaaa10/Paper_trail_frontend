@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
 import { Play, Eye, FileText, Download, Loader2 } from 'lucide-react';
 import { api, PaperSummary } from '../utils/api';
@@ -20,6 +21,11 @@ interface DataStudioState {
   maxPapers: number;
   logs: string[];
   papers: PaperRow[];
+}
+
+interface TimelineEntry {
+  timestamp: string;
+  message: string;
 }
 
 function buildDefaultPapers(): PaperRow[] {
@@ -50,14 +56,17 @@ function loadPersistedState(): DataStudioState | null {
 }
 
 export function DataStudio() {
+  const navigate = useNavigate();
   const persistedState = loadPersistedState();
   const [query, setQuery] = useState(persistedState?.query ?? '');
   const [maxPapers, setMaxPapers] = useState(persistedState?.maxPapers ?? 10);
+  const [useVisualCrawl, setUseVisualCrawl] = useState(true);
   const [isCrawling, setIsCrawling] = useState(false);
   const [logs, setLogs] = useState<string[]>(persistedState?.logs ?? []);
   const [papers, setPapers] = useState<PaperRow[]>(
     persistedState?.papers ?? buildDefaultPapers(),
   );
+  const timelineEntries = logs.map(parseTimelineEntry);
 
   const loadPapers = async () => {
     try {
@@ -88,6 +97,17 @@ export function DataStudio() {
   }, [query, maxPapers, logs, papers]);
 
   const handleCrawl = async () => {
+    if (useVisualCrawl) {
+      navigate('/crawl-visual', {
+        state: {
+          query,
+          maxPapers,
+          limitPerSource: 5,
+        },
+      });
+      return;
+    }
+
     setIsCrawling(true);
     setLogs([]);
 
@@ -100,25 +120,71 @@ export function DataStudio() {
         concurrency: 4,
       });
 
-      setLogs([
+      const newLogs = [
         `[${new Date().toLocaleTimeString()}] Crawl started for query: "${query}"`,
         `[${new Date().toLocaleTimeString()}] Discovered: ${response.discovered}`,
         `[${new Date().toLocaleTimeString()}] Deduped: ${response.deduped}`,
         `[${new Date().toLocaleTimeString()}] Attempted: ${response.attempted}`,
         `[${new Date().toLocaleTimeString()}] Saved: ${response.saved} | Skipped: ${response.skipped} | Failed: ${response.failed}`,
-      ]);
-    } catch {
+      ];
+
+      // Extract saved papers from crawl results
+      const savedPapers: PaperRow[] = response.results
+        .filter((result) => result.status === 'saved')
+        .map((result) => ({
+          paper_id: result.paper_id,
+          title: `Research Paper ${result.paper_id.substring(0, 8)}`,
+          year: new Date().getFullYear().toString(),
+          source: 'crawled',
+          pdf_path: result.pdf_path,
+          metadata_path: result.metadata_path,
+          extracted: false,
+        }));
+
+      // Add saved papers to the list and track failures
+      if (savedPapers.length > 0) {
+        setPapers((prev) => {
+          const existingIds = new Set(prev.map((p) => p.paper_id));
+          const newPapers = savedPapers.filter((p) => !existingIds.has(p.paper_id));
+          return [...prev, ...newPapers];
+        });
+        newLogs.push(
+          `[${new Date().toLocaleTimeString()}] Added ${savedPapers.length} new papers to your collection`,
+        );
+      }
+
+      // Log failures and skips
+      const failedCount = response.results.filter((r) => r.status === 'failed').length;
+      const skippedCount = response.results.filter((r) => r.status === 'skipped').length;
+      if (failedCount > 0) {
+        newLogs.push(
+          `[${new Date().toLocaleTimeString()}] ⚠️  ${failedCount} papers failed to download`,
+        );
+      }
+      if (skippedCount > 0) {
+        newLogs.push(
+          `[${new Date().toLocaleTimeString()}] ℹ️  ${skippedCount} papers skipped (PDF not available)`,
+        );
+      }
+
+      setLogs(newLogs);
+    } catch (error) {
       const fallbackResponse = buildFallbackCrawlResponse({
         question: query,
         max_papers: maxPapers,
       });
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       setLogs([
         `[${new Date().toLocaleTimeString()}] Crawl API unavailable. Using fallback response.`,
+        `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`,
         `[${new Date().toLocaleTimeString()}] Discovered: ${fallbackResponse.discovered}`,
         `[${new Date().toLocaleTimeString()}] Saved: ${fallbackResponse.saved} | Failed: ${fallbackResponse.failed}`,
       ]);
     } finally {
-      await loadPapers();
+      // Only call loadPapers if there were no new papers from crawl response
+      if (papers.length === 0) {
+        await loadPapers();
+      }
       setIsCrawling(false);
     }
   };
@@ -200,6 +266,16 @@ export function DataStudio() {
                 </>
               )}
             </button>
+
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={useVisualCrawl}
+                onChange={(event) => setUseVisualCrawl(event.target.checked)}
+                className="w-4 h-4 text-[#0066ff] rounded focus:ring-[#0066ff]"
+              />
+              Open Crawl Visual screen on submit
+            </label>
           </div>
         </CardContent>
       </Card>
@@ -211,10 +287,26 @@ export function DataStudio() {
             <CardTitle>Progress Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg max-h-48 overflow-y-auto">
-              {logs.map((log, index) => (
-                <div key={index} className="mb-1">{log}</div>
-              ))}
+            <div className="max-h-64 overflow-y-auto pr-2">
+              <div className="space-y-4">
+                {timelineEntries.map((entry, index) => {
+                  const isLast = index === timelineEntries.length - 1;
+                  return (
+                    <div key={`${entry.timestamp}-${entry.message}-${index}`} className="relative pl-8">
+                      {!isLast && (
+                        <div className="absolute left-[9px] top-5 h-[calc(100%+0.75rem)] w-px bg-border"></div>
+                      )}
+                      <div className="absolute left-0 top-1.5 w-5 h-5 rounded-full border-2 border-[#0066ff] bg-card"></div>
+                      <div className="p-3 border border-border bg-card rounded-lg">
+                        {entry.timestamp && (
+                          <div className="text-xs font-mono text-muted-foreground mb-1">{entry.timestamp}</div>
+                        )}
+                        <div className="text-sm text-foreground">{entry.message}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -289,4 +381,19 @@ export function DataStudio() {
       </Card>
     </div>
   );
+}
+
+function parseTimelineEntry(log: string): TimelineEntry {
+  const match = log.match(/^\[(.*?)\]\s*(.*)$/);
+  if (!match) {
+    return {
+      timestamp: '',
+      message: log,
+    };
+  }
+
+  return {
+    timestamp: match[1],
+    message: match[2],
+  };
 }

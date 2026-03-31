@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
 import { Download, FileText, AlertCircle, TrendingUp } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { api, DetailedReport, LatestReportResponse } from '../utils/api';
 import {
   fallbackRecommendations,
@@ -8,6 +9,7 @@ import {
 } from '../utils/fallbackData';
 
 export function Reports() {
+  const navigate = useNavigate();
   const [reportData, setReportData] = useState<LatestReportResponse>(fallbackReportResponse);
   const [generatedAt, setGeneratedAt] = useState<string>(new Date().toLocaleString());
   const detailedReport: DetailedReport = reportData.detailed_report ?? {
@@ -69,6 +71,10 @@ export function Reports() {
 
   const handleExport = () => {
     alert('Report exported successfully!');
+  };
+
+  const handleBrowseResearchClick = () => {
+    navigate('/browse-research');
   };
 
   return (
@@ -363,7 +369,11 @@ export function Reports() {
           <CardContent>
             <div className="space-y-2">
               {detailedReport.future_steps.map((step, index) => (
-                <div key={`${step}-${index}`} className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <div
+                  key={`${step}-${index}`}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-shadow"
+                  onClick={handleBrowseResearchClick}
+                >
                   <div className="w-6 h-6 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center mt-0.5">
                     {index + 1}
                   </div>
@@ -383,7 +393,11 @@ export function Reports() {
           <CardContent>
             <div className="space-y-3">
               {detailedReport.what_to_work_on_next.map((item, index) => (
-                <div key={`${item.focus}-${index}`} className="p-4 border border-emerald-200 bg-emerald-50 rounded-lg">
+                <div
+                  key={`${item.focus}-${index}`}
+                  className="p-4 border border-emerald-200 bg-emerald-50 rounded-lg cursor-pointer hover:border-primary/50 hover:shadow-sm transition-shadow"
+                  onClick={handleBrowseResearchClick}
+                >
                   <div className="text-xs text-emerald-700 font-medium uppercase">{item.priority}</div>
                   <div className="font-medium text-gray-900 mt-1">{item.focus}</div>
                   <p className="text-sm text-gray-600 mt-1">{item.why}</p>

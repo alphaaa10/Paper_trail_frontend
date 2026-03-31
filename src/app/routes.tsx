@@ -6,6 +6,8 @@ import { Investigation } from './pages/Investigation';
 import { GraphAnalysis } from './pages/GraphAnalysis';
 import { Reports } from './pages/Reports';
 import { AIAssistant } from './pages/AIAssistant';
+import { BrowseResearch } from './pages/BrowseResearch';
+import { CrawlVisual } from './pages/CrawlVisual';
 
 export const router = createBrowserRouter([
   {
@@ -18,6 +20,8 @@ export const router = createBrowserRouter([
       { path: 'graph-analysis', Component: GraphAnalysis },
       { path: 'reports', Component: Reports },
       { path: 'ai-assistant', Component: AIAssistant },
+      { path: 'browse-research', Component: BrowseResearch },
+      { path: 'crawl-visual', Component: CrawlVisual },
     ],
   },
 ]);

@@ -434,6 +434,140 @@ export interface LogFileResponse {
   content: string;
 }
 
+export interface LogsRecentResponse {
+  entries: Array<{
+    timestamp: string;
+    level: string;
+    message: string;
+    [key: string]: unknown;
+  }>;
+  total: number;
+  limit: number;
+}
+
+export interface ExtractAllStatusResponse {
+  status: string;
+  processed_count: number;
+  skipped_count: number;
+  total_count: number;
+  in_progress: boolean;
+  last_updated: string;
+}
+
+export interface FinalReportRequest {
+  target_research_finding: string;
+  top_k?: number;
+  paper_ids?: string[];
+}
+
+export interface CrawlReportRequest {
+  query?: string;
+  question?: string;
+  topic_count?: number;
+  limit_per_source?: number;
+  max_papers?: number;
+  concurrency?: number;
+  target_research_finding?: string;
+  top_k?: number;
+}
+
+export interface CrawlReportResponse {
+  crawl_result: CrawlResponse;
+  analysis_result: AnalyzeResponse;
+  report: LatestReportResponse;
+}
+
+export interface MostAccurateRequest {
+  paper_ids: string[];
+  question?: string;
+}
+
+export interface MostAccurateResponse {
+  most_accurate_paper_id: string;
+  title: string;
+  confidence_score: number;
+  reasoning: string;
+  evidence: string[];
+}
+
+export interface DebatesListResponse {
+  debates: Array<{
+    debate_id: string;
+    paper_id_A: string;
+    paper_id_B: string;
+    created_at: string;
+    summary?: string;
+  }>;
+  total: number;
+}
+
+export interface DebateDetailResponse {
+  debate_id: string;
+  paper_id_A: string;
+  paper_id_B: string;
+  paper_A_title?: string;
+  paper_B_title?: string;
+  created_at: string;
+  debate_text: string;
+  structured_debate?: StructuredDebatePairResult;
+}
+
+export interface BrowseSessionsResponse {
+  sessions: Array<{
+    session_id: string;
+    created_at: string;
+    status: string;
+    papers_found?: number;
+  }>;
+  total: number;
+}
+
+export interface CrawlVisualStartRequest {
+  session_id?: string;
+  query: string;
+  max_papers?: number;
+  limit_per_source?: number;
+}
+
+export interface CrawlVisualStartResponse {
+  session_id: string;
+}
+
+export interface CrawlVisualPaper {
+  paper_id: string;
+  title: string;
+  status: string;
+}
+
+export interface CrawlVisualStatusResponse {
+  session_id?: string;
+  status?: string;
+  phase?: string;
+  current_url?: string;
+  url?: string;
+  screenshot_base64?: string;
+  screenshot_b64?: string;
+  screenshot?: string;
+  logs?: unknown[];
+  papers_discovered?: unknown[];
+  discovered?: number;
+  downloaded?: number;
+  extracted?: number;
+  failed?: number;
+}
+
+export interface CrawlVisualSessionSummary {
+  session_id: string;
+  status?: string;
+  query?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CrawlVisualSessionsResponse {
+  sessions: CrawlVisualSessionSummary[];
+}
+
 async function ensureResponseOk(response: Response): Promise<void> {
   if (response.ok) {
     return;
@@ -1379,6 +1513,10 @@ export const api = {
     return getJson<{ status: string }>('/health');
   },
 
+  getHealthCrawler(): Promise<{ status: string; [key: string]: unknown }> {
+    return getJson<{ status: string; [key: string]: unknown }>('/health/crawler');
+  },
+
   crawl(payload: CrawlRequest): Promise<CrawlResponse> {
     return postJson<CrawlRequest, CrawlResponse>('/crawl', payload).then((result) => {
       invalidateReadModelCache();
@@ -1544,5 +1682,91 @@ export const api = {
     }
 
     return streamText.trim();
+  },
+
+  async getLogsRecent(limit = 100): Promise<LogsRecentResponse> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return getJson<LogsRecentResponse>(`/logs/recent?${params.toString()}`);
+  },
+
+  extractAllBackground(): Promise<{ task_id: string; status: string }> {
+    return postJson<undefined, { task_id: string; status: string }>(
+      '/extract-all/background',
+    );
+  },
+
+  getExtractAllStatus(): Promise<ExtractAllStatusResponse> {
+    return getJson<ExtractAllStatusResponse>('/extract-all/status');
+  },
+
+  finalReport(payload: FinalReportRequest): Promise<LatestReportResponse> {
+    return postJson<FinalReportRequest, LatestReportResponse>(
+      '/final-report',
+      payload,
+    );
+  },
+
+  crawlReport(payload: CrawlReportRequest): Promise<CrawlReportResponse> {
+    return postJson<CrawlReportRequest, CrawlReportResponse>(
+      '/crawl-report',
+      payload,
+    ).then((result) => {
+      invalidateReadModelCache();
+      return result;
+    });
+  },
+
+  async getCitationOpen(paperId: string, claimText: string): Promise<CitationResponse> {
+    const params = new URLSearchParams({
+      paper_id: paperId,
+      claim_text: claimText,
+    });
+    const response = await fetch(
+      `${API_BASE_URL}/feature/citation/open?${params.toString()}`,
+    );
+    await ensureResponseOk(response);
+    const payload = (await response.json()) as unknown;
+    return normalizeCitationResponse(payload);
+  },
+
+  async getMostAccurate(
+    payload: MostAccurateRequest,
+  ): Promise<MostAccurateResponse> {
+    return postJson<MostAccurateRequest, MostAccurateResponse>(
+      '/feature/most-accurate',
+      payload,
+      { useCache: true },
+    );
+  },
+
+  getDebatesList(): Promise<DebatesListResponse> {
+    return getJson<DebatesListResponse>('/feature/debates');
+  },
+
+  getDebateById(debateId: string): Promise<DebateDetailResponse> {
+    const encodedId = encodeURIComponent(debateId);
+    return getJson<DebateDetailResponse>(`/feature/debates/${encodedId}`);
+  },
+
+  getBrowseSessions(): Promise<BrowseSessionsResponse> {
+    return getJson<BrowseSessionsResponse>('/browse/sessions');
+  },
+
+  crawlVisualStart(payload: CrawlVisualStartRequest): Promise<CrawlVisualStartResponse> {
+    return postJson<CrawlVisualStartRequest, CrawlVisualStartResponse>('/crawl-visual/start', payload);
+  },
+
+  crawlVisualRun(sessionId: string): Promise<unknown> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return postJson<undefined, unknown>(`/crawl-visual/run/${encodedSessionId}`);
+  },
+
+  crawlVisualStatus(sessionId: string): Promise<CrawlVisualStatusResponse> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return getJson<CrawlVisualStatusResponse>(`/crawl-visual/status/${encodedSessionId}`);
+  },
+
+  crawlVisualSessions(): Promise<CrawlVisualSessionsResponse> {
+    return getJson<CrawlVisualSessionsResponse>('/crawl-visual/sessions');
   },
 };

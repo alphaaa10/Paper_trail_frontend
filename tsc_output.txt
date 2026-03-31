@@ -1,0 +1,3 @@
+src/main.tsx(2,30): error TS7016: Could not find a declaration file for module 'react-dom/client'. 'C:/Users/faizk/projects/Paper_trail_frontend/node_modules/react-dom/client.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/react-dom` if it exists or add a new declaration (.d.ts) file containing `declare module 'react-dom/client';`
+src/main.tsx(4,10): error TS2882: Cannot find module or type declarations for side-effect import of './styles/index.css'.
