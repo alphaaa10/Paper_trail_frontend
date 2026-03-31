@@ -6,6 +6,7 @@ import {
   Network,
   FileText,
   MessageSquare,
+  Clock3,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const navItems = [
   { path: '/graph-analysis', label: 'Graph Analysis', icon: Network },
   { path: '/reports', label: 'Reports', icon: FileText },
   { path: '/ai-assistant', label: 'AI Assistant', icon: MessageSquare },
+  { path: '/timeline', label: 'Timeline', icon: Clock3 },
 ];
 
 interface SidebarProps {
