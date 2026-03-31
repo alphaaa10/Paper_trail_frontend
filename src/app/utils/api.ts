@@ -223,10 +223,26 @@ export interface LatestReportResponse {
   contradictions: ReportContradiction[];
   gaps: string[];
   detailed_report?: DetailedReport;
+  report?: {
+    executive_summary: string;
+    executive_summary_json: Record<string, unknown>;
+    executive_summary_markdown: string;
+  };
+  papers_considered: number;
+  unanswered_question_count: number;
+  decision_topic_count: number;
+  contradicting_paper_count: number;
+  recent_works_count: number;
+  individual_paper_summaries: Array<string | Record<string, unknown>>;
+  cross_paper_analysis: Array<string | Record<string, unknown>>;
+  critical_insights: Array<string | Record<string, unknown>>;
 }
 
 export interface HeatmapRequest {
   paper_ids: string[];
+  target_research_finding?: string;
+  top_k?: number;
+  save_files?: boolean;
 }
 
 export interface PaperDisplayName {
@@ -243,9 +259,79 @@ export interface ContradictionCell {
 
 export interface HeatmapResponse {
   paper_ids: string[];
+  paper_display_names: PaperDisplayName[];
+  executive_summary_json: Record<string, unknown>;
+  executive_summary_markdown: string;
+  knowledge_graph: {
+    nodes: Array<{
+      id: string;
+      title: string;
+      node_type?: string;
+      problem_statement?: string;
+      top_claims?: string[];
+      key_methodology: string;
+      top_methods?: string[];
+      top_datasets?: string[];
+      topic_keywords?: string[];
+      main_contribution: string;
+      claim_count?: number;
+      method_count?: number;
+      dataset_count?: number;
+      year?: string;
+      source?: string;
+      tags: string[];
+    }>;
+    edges: Array<{
+      source: string;
+      target: string;
+      relationship: string;
+      explanation: string;
+      confidence: number;
+      evidence?: Record<string, unknown>;
+    }>;
+  };
+  reactflow_graph: {
+    nodes: Array<{
+      id: string;
+      data: {
+        label: string;
+        description: string;
+        node_type?: string;
+        tags?: string[];
+        year?: string;
+      };
+      position: {
+        x: number;
+        y: number;
+      };
+    }>;
+    edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      label: string;
+      data?: {
+        confidence?: number;
+        explanation?: string;
+        relationship?: string;
+        evidence?: Record<string, unknown>;
+      };
+    }>;
+  };
+  saved_files: {
+    executive_summary_json: string;
+    knowledge_graph_json: string;
+    reactflow_graph_json: string;
+    knowledge_graph_payload_log_json?: string;
+  };
+  stats?: {
+    total_nodes?: number;
+    total_edges?: number;
+    per_type_node_totals?: Record<string, number>;
+  };
+  relationship_counts?: Record<string, number>;
+  generation_log?: Array<Record<string, unknown>>;
   mode: string;
-  matrix: ContradictionCell[][];
-  paper_display_names?: PaperDisplayName[];
 }
 
 export interface CitationRequest {
@@ -1028,36 +1114,267 @@ function normalizeStructuredDebateResponse(
 
 function normalizeHeatmapResponse(value: unknown): HeatmapResponse {
   const payload = asRecord(value) ?? {};
-  const matrix = Array.isArray(payload.matrix)
-    ? payload.matrix.map((row) => {
-        if (!Array.isArray(row)) {
-          return [];
-        }
+  console.info('[api.normalizeHeatmapResponse] Raw /feature/heatmap keys:', Object.keys(payload));
+  const knowledgeGraphPayload = asRecord(
+    payload.knowledge_graph ?? payload.knowledgeGraph ?? payload.graph,
+  ) ?? {};
+  const reactflowPayload = asRecord(
+    payload.reactflow_graph ?? payload.reactFlowGraph ?? payload.reactflow ?? payload.flow_graph,
+  ) ?? {};
+  const savedFilesPayload = asRecord(payload.saved_files) ?? {};
 
-        return row
-          .map((cell) => {
-            const item = asRecord(cell);
-            if (!item) {
-              return null;
-            }
+  const knowledgeNodes = Array.isArray(knowledgeGraphPayload.nodes)
+    ? knowledgeGraphPayload.nodes
+        .map((node) => {
+          const item = asRecord(node);
+          if (!item) {
+            return null;
+          }
 
-            return {
-              from: toStringValue(item.from),
-              to: toStringValue(item.to),
-              contradicts: Boolean(item.contradicts),
-              contradictions: toStringArray(item.contradictions),
-            };
-          })
-          .filter((cell): cell is ContradictionCell => cell !== null);
-      })
+          const id = toStringValue(item.id ?? item.paper_id ?? item.node_id);
+          if (!id) {
+            return null;
+          }
+
+          return {
+            id,
+            title: toStringValue(item.title ?? item.label),
+            node_type: toStringValue(item.node_type) || undefined,
+            problem_statement: toStringValue(item.problem_statement) || undefined,
+            top_claims: toStringArray(item.top_claims),
+            key_methodology: toStringValue(item.key_methodology),
+            top_methods: toStringArray(item.top_methods),
+            top_datasets: toStringArray(item.top_datasets),
+            topic_keywords: toStringArray(item.topic_keywords),
+            main_contribution: toStringValue(item.main_contribution),
+            claim_count: toNumber(item.claim_count, -1) >= 0 ? toNumber(item.claim_count) : undefined,
+            method_count: toNumber(item.method_count, -1) >= 0 ? toNumber(item.method_count) : undefined,
+            dataset_count: toNumber(item.dataset_count, -1) >= 0 ? toNumber(item.dataset_count) : undefined,
+            year: toStringValue(item.year) || undefined,
+            source: toStringValue(item.source) || undefined,
+            tags: toStringArray(item.tags),
+          };
+        })
+        .filter((node): node is NonNullable<typeof node> => node !== null)
     : [];
+
+  const knowledgeEdges = Array.isArray(knowledgeGraphPayload.edges)
+    ? knowledgeGraphPayload.edges
+        .map((edge) => {
+          const item = asRecord(edge);
+          if (!item) {
+            return null;
+          }
+
+          const source = toStringValue(item.source ?? item.from);
+          const target = toStringValue(item.target ?? item.to);
+          if (!source || !target) {
+            return null;
+          }
+
+          return {
+            source,
+            target,
+            relationship: toStringValue(item.relationship ?? item.type ?? item.label),
+            explanation: toStringValue(item.explanation),
+            confidence: toNumber(item.confidence),
+            evidence: asRecord(item.evidence) ?? undefined,
+          };
+        })
+        .filter((edge): edge is NonNullable<typeof edge> => edge !== null)
+    : [];
+
+  const reactflowNodes = Array.isArray(reactflowPayload.nodes)
+    ? reactflowPayload.nodes
+        .map((node, index) => {
+          const item = asRecord(node);
+          if (!item) {
+            return null;
+          }
+
+          const nodeData = asRecord(item.data) ?? {};
+          const nodePosition = asRecord(item.position) ?? {};
+          const id = toStringValue(item.id ?? item.paper_id ?? item.node_id);
+          if (!id) {
+            return null;
+          }
+
+          return {
+            id,
+            data: {
+              label: toStringValue(nodeData.label ?? item.label ?? item.title) || id,
+              description: toStringValue(
+                nodeData.description ?? item.description ?? item.main_contribution ?? item.key_methodology,
+              ),
+              node_type: toStringValue(nodeData.node_type ?? item.node_type) || undefined,
+              tags: toStringArray(nodeData.tags ?? item.tags),
+              year: toStringValue(nodeData.year ?? item.year) || undefined,
+            },
+            position: {
+              x: toNumber(nodePosition.x, (index % 4) * 260),
+              y: toNumber(nodePosition.y, Math.floor(index / 4) * 180),
+            },
+          };
+        })
+        .filter((node): node is NonNullable<typeof node> => node !== null)
+    : [];
+
+  const reactflowEdges = Array.isArray(reactflowPayload.edges)
+    ? reactflowPayload.edges
+        .map((edge, index) => {
+          const item = asRecord(edge);
+          if (!item) {
+            return null;
+          }
+
+          const source = toStringValue(item.source ?? item.from);
+          const target = toStringValue(item.target ?? item.to);
+          if (!source || !target) {
+            return null;
+          }
+
+          const id = toStringValue(item.id) || `${source}-${target}-${index}`;
+          return {
+            id,
+            source,
+            target,
+            label: toStringValue(item.label ?? item.relationship ?? item.type),
+            data: {
+              confidence: toNumber(item.confidence, -1) >= 0 ? toNumber(item.confidence) : undefined,
+              explanation: toStringValue(item.explanation) || undefined,
+              relationship: toStringValue(item.relationship ?? item.type) || undefined,
+              evidence: asRecord(item.evidence) ?? undefined,
+            },
+          };
+        })
+        .filter((edge): edge is NonNullable<typeof edge> => edge !== null)
+    : [];
+
+  const normalizedReactflowNodes = reactflowNodes.length > 0
+    ? reactflowNodes
+    : knowledgeNodes.map((node, index) => ({
+        id: node.id,
+        data: {
+          label: node.title || node.id,
+          description: node.main_contribution || node.key_methodology,
+        },
+        position: {
+          x: (index % 4) * 260,
+          y: Math.floor(index / 4) * 180,
+        },
+      }));
+
+  const normalizedReactflowEdges = reactflowEdges.length > 0
+    ? reactflowEdges
+    : knowledgeEdges.map((edge, index) => ({
+        id: `${edge.source}-${edge.target}-${index}`,
+        source: edge.source,
+        target: edge.target,
+        label: edge.relationship,
+      }));
+
+  const executiveSummaryJson = asRecord(payload.executive_summary_json) ?? {};
+  const normalizedPaperDisplayNames = normalizePaperDisplayNames(payload.paper_display_names);
+  const statsPayload = asRecord(payload.stats) ?? {};
+  const relationshipCountsPayload = asRecord(payload.relationship_counts) ?? {};
+  const generationLog = Array.isArray(payload.generation_log)
+    ? payload.generation_log
+        .map((item) => asRecord(item))
+        .filter((item): item is Record<string, unknown> => item !== null)
+    : [];
+  const perTypeNodeTotalsPayload = asRecord(statsPayload.per_type_node_totals) ?? {};
+  const perTypeNodeTotals: Record<string, number> = {};
+  for (const [key, value] of Object.entries(perTypeNodeTotalsPayload)) {
+    perTypeNodeTotals[key] = toNumber(value);
+  }
+  const relationshipCounts: Record<string, number> = {};
+  for (const [key, value] of Object.entries(relationshipCountsPayload)) {
+    relationshipCounts[key] = toNumber(value);
+  }
+
+  console.info('[api.normalizeHeatmapResponse] Parsed graph sizes:', {
+    paperIds: toStringArray(payload.paper_ids).length,
+    knowledgeNodes: knowledgeNodes.length,
+    knowledgeEdges: knowledgeEdges.length,
+    reactflowNodes: normalizedReactflowNodes.length,
+    reactflowEdges: normalizedReactflowEdges.length,
+  });
 
   return {
     paper_ids: toStringArray(payload.paper_ids),
+    paper_display_names: normalizedPaperDisplayNames,
+    executive_summary_json: executiveSummaryJson,
+    executive_summary_markdown: toStringValue(payload.executive_summary_markdown),
+    knowledge_graph: {
+      nodes: knowledgeNodes,
+      edges: knowledgeEdges,
+    },
+    reactflow_graph: {
+      nodes: normalizedReactflowNodes,
+      edges: normalizedReactflowEdges,
+    },
+    saved_files: {
+      executive_summary_json: toStringValue(savedFilesPayload.executive_summary_json),
+      knowledge_graph_json: toStringValue(savedFilesPayload.knowledge_graph_json),
+      reactflow_graph_json: toStringValue(savedFilesPayload.reactflow_graph_json),
+      knowledge_graph_payload_log_json: toStringValue(savedFilesPayload.knowledge_graph_payload_log_json) || undefined,
+    },
+    stats: {
+      total_nodes: toNumber(statsPayload.total_nodes, normalizedReactflowNodes.length),
+      total_edges: toNumber(statsPayload.total_edges, normalizedReactflowEdges.length),
+      per_type_node_totals: perTypeNodeTotals,
+    },
+    relationship_counts: relationshipCounts,
+    generation_log: generationLog,
     mode: toStringValue(payload.mode),
-    matrix,
-    paper_display_names: normalizePaperDisplayNames(payload.paper_display_names),
   };
+}
+
+function normalizeMixedContentBlocks(value: unknown): Array<string | Record<string, unknown>> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const text = item.trim();
+        return text || null;
+      }
+
+      const payload = asRecord(item);
+      if (!payload) {
+        return null;
+      }
+
+      return payload;
+    })
+    .filter((item): item is string | Record<string, unknown> => item !== null);
+}
+
+function normalizeReportSection(
+  directValue: unknown,
+  executiveSummaryJson: Record<string, unknown>,
+  sectionKey: string,
+): Array<string | Record<string, unknown>> {
+  const directBlocks = normalizeMixedContentBlocks(directValue);
+  if (directBlocks.length > 0) {
+    return directBlocks;
+  }
+
+  const nestedValue = executiveSummaryJson[sectionKey];
+  const nestedBlocks = normalizeMixedContentBlocks(nestedValue);
+  if (nestedBlocks.length > 0) {
+    return nestedBlocks;
+  }
+
+  const nestedRecord = asRecord(nestedValue);
+  if (nestedRecord) {
+    return [nestedRecord];
+  }
+
+  const nestedText = toStringValue(nestedValue);
+  return nestedText ? [nestedText] : [];
 }
 
 function normalizeCitationResponse(value: unknown): CitationResponse {
@@ -1496,6 +1813,31 @@ function normalizeLatestReportResponse(raw: unknown): LatestReportResponse {
       ?? payload.detailedReport
       ?? nestedReport?.detailed_report,
   );
+  const reportPayload = asRecord(payload.report) ?? {};
+  const executiveSummary = toStringValue(
+    reportPayload.executive_summary ?? payload.executive_summary,
+  );
+  const executiveSummaryJson = asRecord(
+    reportPayload.executive_summary_json ?? payload.executive_summary_json,
+  ) ?? {};
+  const executiveSummaryMarkdown = toStringValue(
+    reportPayload.executive_summary_markdown ?? payload.executive_summary_markdown,
+  );
+  const individualPaperSummaries = normalizeReportSection(
+    payload.individual_paper_summaries,
+    executiveSummaryJson,
+    'individual_paper_summaries',
+  );
+  const crossPaperAnalysis = normalizeReportSection(
+    payload.cross_paper_analysis,
+    executiveSummaryJson,
+    'cross_paper_analysis',
+  );
+  const criticalInsights = normalizeReportSection(
+    payload.critical_insights,
+    executiveSummaryJson,
+    'critical_insights',
+  );
 
   return {
     paper_count: paperCount,
@@ -1505,6 +1847,19 @@ function normalizeLatestReportResponse(raw: unknown): LatestReportResponse {
     contradictions,
     gaps,
     detailed_report: detailedReport,
+    report: {
+      executive_summary: executiveSummary,
+      executive_summary_json: executiveSummaryJson,
+      executive_summary_markdown: executiveSummaryMarkdown,
+    },
+    papers_considered: toNumber(payload.papers_considered, paperCount),
+    unanswered_question_count: toNumber(payload.unanswered_question_count),
+    decision_topic_count: toNumber(payload.decision_topic_count),
+    contradicting_paper_count: toNumber(payload.contradicting_paper_count),
+    recent_works_count: toNumber(payload.recent_works_count),
+    individual_paper_summaries: individualPaperSummaries,
+    cross_paper_analysis: crossPaperAnalysis,
+    critical_insights: criticalInsights,
   };
 }
 
@@ -1551,22 +1906,54 @@ export const api = {
     });
   },
 
-  async getReport(): Promise<LatestReportResponse> {
+  async fetchFinalReport(): Promise<LatestReportResponse> {
     // Report data can change frequently after analysis runs; skip cache to avoid stale UI.
     const response = await fetch(`${API_BASE_URL}/report`);
     await ensureResponseOk(response);
     const payload = (await response.json()) as unknown;
     const normalized = normalizeLatestReportResponse(payload);
-    console.info('[api.getReport] Raw /report payload:', payload);
-    console.info('[api.getReport] Normalized report payload:', normalized);
+    console.info('[api.fetchFinalReport] Raw /report payload:', payload);
+    console.info('[api.fetchFinalReport] Normalized report payload:', normalized);
     return normalized;
   },
 
-  async getHeatmap(paperIds: string[]): Promise<HeatmapResponse> {
-    const payload = await postJson<HeatmapRequest, unknown>('/feature/heatmap', {
-      paper_ids: paperIds,
+  async generateKnowledgeGraph(payload: HeatmapRequest): Promise<HeatmapResponse> {
+    const dedupedPaperIds = Array.from(new Set(payload.paper_ids.map((item) => item.trim()).filter(Boolean)));
+    if (dedupedPaperIds.length < 2) {
+      throw new Error('Please select at least 2 paper IDs to generate a knowledge graph.');
+    }
+
+    console.info('[api.generateKnowledgeGraph] Request payload:', {
+      paper_ids: dedupedPaperIds,
+      target_research_finding: payload.target_research_finding,
+      top_k: payload.top_k,
+      save_files: payload.save_files,
+    });
+
+    const response = await postJson<HeatmapRequest, unknown>('/feature/heatmap', {
+      ...payload,
+      paper_ids: dedupedPaperIds,
     }, { useCache: true });
-    return normalizeHeatmapResponse(payload);
+    const normalized = normalizeHeatmapResponse(response);
+    console.info('[api.generateKnowledgeGraph] Normalized payload summary:', {
+      paper_ids: normalized.paper_ids.length,
+      knowledge_nodes: normalized.knowledge_graph.nodes.length,
+      knowledge_edges: normalized.knowledge_graph.edges.length,
+      reactflow_nodes: normalized.reactflow_graph.nodes.length,
+      reactflow_edges: normalized.reactflow_graph.edges.length,
+      mode: normalized.mode,
+    });
+    return normalized;
+  },
+
+  async getReport(): Promise<LatestReportResponse> {
+    return api.fetchFinalReport();
+  },
+
+  async getHeatmap(paperIds: string[]): Promise<HeatmapResponse> {
+    return api.generateKnowledgeGraph({
+      paper_ids: paperIds,
+    });
   },
 
   async getCitation(payload: CitationRequest): Promise<CitationResponse> {
@@ -1699,11 +2086,12 @@ export const api = {
     return getJson<ExtractAllStatusResponse>('/extract-all/status');
   },
 
-  finalReport(payload: FinalReportRequest): Promise<LatestReportResponse> {
-    return postJson<FinalReportRequest, LatestReportResponse>(
+  async finalReport(payload: FinalReportRequest): Promise<LatestReportResponse> {
+    const response = await postJson<FinalReportRequest, unknown>(
       '/final-report',
       payload,
     );
+    return normalizeLatestReportResponse(response);
   },
 
   crawlReport(payload: CrawlReportRequest): Promise<CrawlReportResponse> {

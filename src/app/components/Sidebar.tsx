@@ -15,7 +15,7 @@ const navItems = [
   { path: '/', label: 'Home', icon: Home, exact: true },
   { path: '/data-studio', label: 'Data Studio', icon: Database },
   { path: '/investigation', label: 'Investigation', icon: Search },
-  { path: '/graph-analysis', label: 'Graph Analysis', icon: Network },
+  { path: '/graph-analysis', label: 'Knowledge Graph', icon: Network },
   { path: '/reports', label: 'Reports', icon: FileText },
   { path: '/ai-assistant', label: 'AI Assistant', icon: MessageSquare },
   { path: '/timeline', label: 'Timeline', icon: Clock3 },

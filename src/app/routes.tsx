@@ -19,6 +19,7 @@ export const router = createBrowserRouter([
       { path: 'data-studio', Component: DataStudio },
       { path: 'investigation', Component: Investigation },
       { path: 'graph-analysis', Component: GraphAnalysis },
+      { path: 'knowledge-graph', Component: GraphAnalysis },
       { path: 'reports', Component: Reports },
       { path: 'ai-assistant', Component: AIAssistant },
       { path: 'browse-research', Component: BrowseResearch },

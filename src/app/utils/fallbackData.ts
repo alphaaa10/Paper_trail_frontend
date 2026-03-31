@@ -74,39 +74,75 @@ export const fallbackPapersResponse: ListPapersResponse = {
 
 export const fallbackHeatmapResponse: HeatmapResponse = {
   paper_ids: ['paper_1ba6db38d4c86a5e', 'paper_2ba6db38d4c86a5e'],
-  mode: 'groq',
-  matrix: [
-    [
-      {
-        from: 'paper_1ba6db38d4c86a5e',
-        to: 'paper_1ba6db38d4c86a5e',
-        contradicts: false,
-        contradictions: [],
-      },
-      {
-        from: 'paper_1ba6db38d4c86a5e',
-        to: 'paper_2ba6db38d4c86a5e',
-        contradicts: true,
-        contradictions: [
-          'Paper A reports improvement while Paper B reports no improvement in similar setup.',
-        ],
-      },
-    ],
-    [
-      {
-        from: 'paper_2ba6db38d4c86a5e',
-        to: 'paper_1ba6db38d4c86a5e',
-        contradicts: true,
-        contradictions: ['Paper B does not confirm the gain claimed by Paper A.'],
-      },
-      {
-        from: 'paper_2ba6db38d4c86a5e',
-        to: 'paper_2ba6db38d4c86a5e',
-        contradicts: false,
-        contradictions: [],
-      },
-    ],
+  paper_display_names: [
+    { paper_id: 'paper_1ba6db38d4c86a5e', display_name: 'Traffic Forecasting GNN Study' },
+    { paper_id: 'paper_2ba6db38d4c86a5e', display_name: 'Urban Mobility Meta Review' },
   ],
+  executive_summary_json: {
+    highlights: ['Two core papers disagree on robustness under sparse data.'],
+  },
+  executive_summary_markdown: '## Knowledge Graph Summary\n\n- Major contradiction on data sparsity assumptions.',
+  knowledge_graph: {
+    nodes: [
+      {
+        id: 'paper_1ba6db38d4c86a5e',
+        title: 'Traffic Forecasting GNN Study',
+        key_methodology: 'Spatiotemporal GNN',
+        main_contribution: 'Improves MAE under dense supervision.',
+        tags: ['gnn', 'traffic'],
+      },
+      {
+        id: 'paper_2ba6db38d4c86a5e',
+        title: 'Urban Mobility Meta Review',
+        key_methodology: 'Meta-analysis',
+        main_contribution: 'Reports inconsistent gains under sparse splits.',
+        tags: ['meta-analysis', 'robustness'],
+      },
+    ],
+    edges: [
+      {
+        source: 'paper_1ba6db38d4c86a5e',
+        target: 'paper_2ba6db38d4c86a5e',
+        relationship: 'CONTRADICTS',
+        explanation: 'Conflicting claims about sparse supervision outcomes.',
+        confidence: 0.86,
+      },
+    ],
+  },
+  reactflow_graph: {
+    nodes: [
+      {
+        id: 'paper_1ba6db38d4c86a5e',
+        data: {
+          label: 'Traffic Forecasting GNN Study',
+          description: 'Dense supervision gains',
+        },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: 'paper_2ba6db38d4c86a5e',
+        data: {
+          label: 'Urban Mobility Meta Review',
+          description: 'Sparse split skepticism',
+        },
+        position: { x: 320, y: 60 },
+      },
+    ],
+    edges: [
+      {
+        id: 'edge-1',
+        source: 'paper_1ba6db38d4c86a5e',
+        target: 'paper_2ba6db38d4c86a5e',
+        label: 'CONTRADICTS',
+      },
+    ],
+  },
+  saved_files: {
+    executive_summary_json: 'data/feature/exec_summary.json',
+    knowledge_graph_json: 'data/feature/knowledge_graph.json',
+    reactflow_graph_json: 'data/feature/reactflow_graph.json',
+  },
+  mode: 'knowledge-graph',
 };
 
 export const fallbackAnalyzeResponse: AnalyzeResponse = {
@@ -146,6 +182,32 @@ export const fallbackReportResponse: LatestReportResponse = {
     'Long-term model stability under changing traffic patterns remains under-studied.',
     'Cross-domain generalization for multi-city transfer has limited evidence.',
     'Energy efficiency trade-offs are rarely benchmarked consistently.',
+  ],
+  report: {
+    executive_summary: 'The final report highlights unresolved disagreement across model depth and data regime assumptions.',
+    executive_summary_json: {
+      key_takeaways: ['Sparse-data robustness remains disputed.'],
+      confidence_band: 'medium-high',
+    },
+    executive_summary_markdown: '## Executive Summary\n\n- Contradictions remain on model depth and sparse-data stability.\n- Recommended to run controlled replications.',
+  },
+  papers_considered: 8,
+  unanswered_question_count: 3,
+  decision_topic_count: 5,
+  contradicting_paper_count: 4,
+  recent_works_count: 6,
+  individual_paper_summaries: [
+    {
+      paper_id: 'paper_1ba6db38d4c86a5e',
+      title: 'Graph Neural Networks for Traffic Forecasting',
+      summary: 'Strong gains under dense supervision; weaker in sparse conditions.',
+    },
+  ],
+  cross_paper_analysis: [
+    'Most disagreements are tied to training split design and normalization differences.',
+  ],
+  critical_insights: [
+    'Benchmark protocol variance is likely the largest source of contradictory outcomes.',
   ],
 };
 

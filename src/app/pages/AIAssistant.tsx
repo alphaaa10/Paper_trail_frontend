@@ -1,7 +1,24 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
-import { Send, Bot, User, Loader2, Copy, ExternalLink } from 'lucide-react';
-import { api, CitationAwareChatResponse, CitationResponse } from '../utils/api';
+import {
+  Send,
+  Bot,
+  User,
+  Loader2,
+  Copy,
+  ExternalLink,
+  Sparkles,
+  Quote,
+  FileText,
+  Funnel,
+} from 'lucide-react';
+import {
+  api,
+  CitationAwareChatResponse,
+  CitationAwareClaim,
+  CitationResponse,
+} from '../utils/api';
 
 interface Message {
   id: number;
@@ -9,6 +26,58 @@ interface Message {
   content: string;
   timestamp: Date;
   citationData?: CitationAwareChatResponse;
+}
+
+interface QuickAction {
+  label: string;
+  prompt: string;
+  tone: string;
+}
+
+function normalizeAnswerContent(raw: string): string {
+  const normalized = (raw || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) {
+    return 'No answer was returned.';
+  }
+
+  return normalized;
+}
+
+function titleCase(input: string): string {
+  return input
+    .split(/[_\s-]+/g)
+    .filter(Boolean)
+    .map((token) => token[0].toUpperCase() + token.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function normalizeCitations(citations: CitationAwareClaim[]): CitationAwareClaim[] {
+  const unique = new Map<string, CitationAwareClaim>();
+
+  citations.forEach((citation) => {
+    const key = `${citation.paper_id}::${citation.claim_text}`;
+    if (!unique.has(key)) {
+      unique.set(key, citation);
+      return;
+    }
+
+    const current = unique.get(key);
+    if (!current) {
+      return;
+    }
+
+    if ((citation.relevance_score || 0) > (current.relevance_score || 0)) {
+      unique.set(key, citation);
+    }
+  });
+
+  return Array.from(unique.values()).sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
+}
+
+function toPercent(score: number): string {
+  const safe = Number.isFinite(score) ? score : 0;
+  const bounded = Math.max(0, Math.min(1, safe));
+  return `${Math.round(bounded * 100)}%`;
 }
 
 function getCitationPdfUrl(citationPayload: CitationResponse): string {
@@ -34,7 +103,8 @@ export function AIAssistant() {
     {
       id: 1,
       role: 'assistant',
-      content: "Hello! Ask any research question and I will answer using your extracted papers. You can optionally filter context with comma-separated paper IDs.",
+      content:
+        "Ask any research question and I will return a structured answer first, followed by source citations.",
       timestamp: new Date(),
     },
   ]);
@@ -45,11 +115,27 @@ export function AIAssistant() {
   const [isResolvingCitation, setIsResolvingCitation] = useState(false);
   const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null);
 
-  const quickActions = [
-    { label: 'Summarize findings', prompt: 'What are the main findings across the extracted papers?' },
-    { label: 'Methods comparison', prompt: 'Compare the most common methods and their tradeoffs.' },
-    { label: 'Contradictions', prompt: 'What are the strongest contradictions in the extracted corpus?' },
-    { label: 'Research gaps', prompt: 'What are the key research gaps suggested by these papers?' },
+  const quickActions: QuickAction[] = [
+    {
+      label: 'Landscape Brief',
+      prompt: 'Give me a structured landscape brief: dominant findings, methods, and unresolved gaps.',
+      tone: 'Synthesis',
+    },
+    {
+      label: 'Method Tradeoffs',
+      prompt: 'Compare the most common methods and explain where each fails.',
+      tone: 'Comparison',
+    },
+    {
+      label: 'Contradiction Drilldown',
+      prompt: 'List major contradictions and explain likely reasons behind each one.',
+      tone: 'Conflict',
+    },
+    {
+      label: 'Next Research Bets',
+      prompt: 'Propose highest-impact next steps based on the extracted corpus.',
+      tone: 'Planning',
+    },
   ];
 
   function parsePaperIds(raw: string): string[] {
@@ -126,9 +212,14 @@ export function AIAssistant() {
       const assistantMessage: Message = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: response.answer || 'No answer generated.',
+        content: normalizeAnswerContent(response.answer || response.answer_with_citations || ''),
         timestamp: new Date(),
-        citationData: response,
+        citationData: {
+          ...response,
+          citations: normalizeCitations(response.citations || []),
+          answer: normalizeAnswerContent(response.answer || ''),
+          answer_with_citations: normalizeAnswerContent(response.answer_with_citations || ''),
+        },
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -155,246 +246,271 @@ export function AIAssistant() {
     handleSend(prompt);
   };
 
-  return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">AI Research Assistant</h1>
-        <p className="text-gray-600 mt-1">Citation-aware Q&A over extracted papers with explicit claim traceability</p>
-        {statusText && (
-          <p className="text-sm text-[#0066ff] mt-2">{statusText}</p>
-        )}
-      </div>
+  const latestAssistant = [...messages].reverse().find((message) => message.role === 'assistant' && message.citationData);
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {quickActions.map((action, index) => (
+  const latestCitationCount = latestAssistant?.citationData?.citations.length || 0;
+
+  return (
+    <div className="relative mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="pointer-events-none absolute -top-6 -left-6 h-40 w-40 rounded-full bg-[#e8dcc3]/60 blur-2xl" />
+      <div className="pointer-events-none absolute -right-4 top-20 h-44 w-44 rounded-full bg-[#cdb483]/40 blur-2xl" />
+
+      <Card className="relative overflow-hidden border-[#d5c4a4] bg-gradient-to-br from-[#fffdfa] via-[#f8f2e8] to-[#efe6d7]">
+        <CardContent className="p-6 md:p-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-2">
+              <p className="inline-flex items-center gap-2 border border-[#dbc6a1] bg-white/80 px-3 py-1 text-xs uppercase tracking-[0.16em] text-[#8f7237]">
+                <Sparkles className="h-3.5 w-3.5" />
+                Citation-grounded assistant
+              </p>
+              <h1 className="text-3xl leading-tight text-[#2a1f12] md:text-4xl [font-family:Georgia,'Times_New_Roman',serif]">
+                Ask better questions. Read clearer answers.
+              </h1>
+              <p className="max-w-2xl text-sm text-[#6f592b] md:text-base">
+                Every response is rendered in a structured reading format first. Evidence appears after that in a dedicated citations block.
+              </p>
+              {statusText && <p className="text-sm font-medium text-[#7b5b1b]">{statusText}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:w-[320px]">
+              <div className="border border-[#dbc6a1] bg-white/85 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-[#9a7438]">Messages</div>
+                <div className="mt-1 text-xl font-semibold text-[#2f2614]">{messages.length}</div>
+              </div>
+              <div className="border border-[#dbc6a1] bg-white/85 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-[#9a7438]">Latest Citations</div>
+                <div className="mt-1 text-xl font-semibold text-[#2f2614]">{latestCitationCount}</div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {quickActions.map((action) => (
           <button
-            key={index}
+            key={action.label}
             onClick={() => handleQuickAction(action.prompt)}
-            className="p-3 bg-white border border-gray-200 hover:bg-gray-50 hover:border-[#0066ff] transition-colors text-left"
+            className="group border border-[#d8ccb8] bg-white/90 p-4 text-left transition-colors hover:border-[#a97e35] hover:bg-[#fcf7ee]"
           >
-            <div className="text-sm font-medium text-gray-900">{action.label}</div>
+            <div className="text-[10px] uppercase tracking-[0.12em] text-[#9a7438]">{action.tone}</div>
+            <div className="mt-1 text-sm font-semibold text-[#2f2614] group-hover:text-[#5f4316]">{action.label}</div>
           </button>
         ))}
       </div>
 
-      {/* Chat Interface */}
-      <Card className="h-[600px] flex flex-col overflow-hidden">
-        <CardHeader className="border-b border-gray-200">
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-[#0066ff]" />
-            Chat Interface
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 min-h-0 flex flex-col p-0">
-          {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {message.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-[#0066ff] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-5 h-5 text-white" />
-                  </div>
-                )}
-                <div
-                  className={`max-w-[80%] rounded-lg p-4 ${
-                    message.role === 'user'
-                      ? 'bg-[#0066ff] text-white'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
-                >
-                  <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                    {message.content}
-                  </div>
-                  {message.role === 'assistant' && message.citationData && (
-                    <div className="mt-4 space-y-3">
-                      <div className="text-xs text-gray-600">
-                        Mode: {message.citationData.mode} | Papers considered: {message.citationData.papers_considered}
-                      </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_300px]">
+        <Card className="h-[680px] border-[#d8ccb8] bg-white/95 p-0">
+          <CardHeader className="border-b border-[#e8e1d2] px-6 py-4">
+            <CardTitle className="flex items-center gap-2 text-[#2f2614]">
+              <Bot className="h-5 w-5 text-[#8e6a2a]" />
+              Conversation
+            </CardTitle>
+          </CardHeader>
 
-                      {message.citationData.citations.length > 0 ? (
-                        <div className="grid grid-cols-1 gap-2">
-                          {message.citationData.citations.map((citation, index) => {
-                            const citationKey = `${citation.paper_id}:${citation.claim_text}`;
-                            const isCurrentCitation = isResolvingCitation && activeCitationKey === citationKey;
-                            return (
-                              <div key={citationKey} className="border border-gray-200 rounded-md bg-white p-3">
-                                <div className="flex items-center justify-between gap-2 mb-2">
-                                  <strong className="text-xs text-gray-900">
-                                    [{index + 1}] {citation.paper_id}
-                                  </strong>
-                                  <div className="flex items-center gap-2 text-[11px]">
-                                    <span className="px-2 py-0.5 rounded bg-teal-700 text-white capitalize">{citation.section || 'claim'}</span>
-                                    <span className="px-2 py-0.5 rounded bg-emerald-600 text-white">{((citation.relevance_score || 0) * 100).toFixed(0)}%</span>
-                                  </div>
-                                </div>
-
-                                <p className="text-xs text-gray-700 italic bg-gray-50 border-l-2 border-gray-300 p-2 rounded">
-                                  "{citation.claim_text}"
-                                </p>
-
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => void copyCitation(citation.paper_id, citation.claim_text)}
-                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 rounded bg-gray-100 hover:bg-gray-200 transition-colors"
-                                  >
-                                    <Copy className="w-3.5 h-3.5" />
-                                    Copy
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void jumpToCitation(citation.paper_id, citation.claim_text)}
-                                    disabled={isCurrentCitation}
-                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                                  >
-                                    {isCurrentCitation ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    ) : (
-                                      <ExternalLink className="w-3.5 h-3.5" />
-                                    )}
-                                    PDF
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-600">No backing claims were returned for this answer.</p>
-                      )}
-
-                      <details className="bg-white border border-gray-200 rounded-md p-2">
-                        <summary className="text-xs font-medium text-gray-800 cursor-pointer">Formatted View</summary>
-                        <pre className="mt-2 text-xs text-gray-700 whitespace-pre-wrap break-words font-mono">
-                          {message.citationData.answer_with_citations || message.citationData.answer}
-                        </pre>
-                      </details>
+          <CardContent className="flex h-[calc(100%-78px)] min-h-0 flex-col p-0">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {message.role === 'assistant' && (
+                    <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[#d6c29f] bg-[#f4ead8]">
+                      <Bot className="h-4 w-4 text-[#7b5b1b]" />
                     </div>
                   )}
+
                   <div
-                    className={`text-xs mt-2 ${
-                      message.role === 'user' ? 'text-[#99c2ff]' : 'text-gray-500'
+                    className={`max-w-[86%] border p-4 ${
+                      message.role === 'user'
+                        ? 'border-[#ac8340] bg-[#7f5d1d] text-[#fff9ef]'
+                        : 'border-[#e2d6c1] bg-[#fbf8f2] text-[#2f2614]'
                     }`}
                   >
-                    {message.timestamp.toLocaleTimeString()}
+                    {message.role === 'assistant' ? (
+                      <div className="space-y-4">
+                        <div>
+                          <div className="mb-2 inline-flex items-center gap-1.5 border border-[#dccfb3] bg-white px-2.5 py-1 text-[11px] uppercase tracking-[0.12em] text-[#8f7237]">
+                            <FileText className="h-3.5 w-3.5" />
+                            Formatted response
+                          </div>
+                          <div className="prose prose-sm max-w-none text-[#3a2d15]">
+                            <ReactMarkdown>{normalizeAnswerContent(message.content)}</ReactMarkdown>
+                          </div>
+                        </div>
+
+                        {message.citationData && (
+                          <div className="space-y-3 border-t border-[#e6dbc7] pt-3">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-[#8f7237]">
+                              <span className="inline-flex items-center gap-1 border border-[#dccfb3] bg-white px-2 py-1">
+                                <Quote className="h-3 w-3" />
+                                Sources and citations
+                              </span>
+                              <span className="inline-flex border border-[#dccfb3] bg-white px-2 py-1">
+                                Mode: {titleCase(message.citationData.mode || 'unknown')}
+                              </span>
+                              <span className="inline-flex border border-[#dccfb3] bg-white px-2 py-1">
+                                Papers: {message.citationData.papers_considered}
+                              </span>
+                            </div>
+
+                            {message.citationData.citations.length > 0 ? (
+                              <div className="space-y-2">
+                                {message.citationData.citations.map((citation, index) => {
+                                  const citationKey = `${citation.paper_id}:${citation.claim_text}`;
+                                  const isCurrentCitation = isResolvingCitation && activeCitationKey === citationKey;
+                                  return (
+                                    <div key={citationKey} className="border border-[#e1d6c2] bg-white p-3">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <strong className="text-xs text-[#2f2614]">
+                                          [{index + 1}] {citation.paper_id}
+                                        </strong>
+                                        <div className="flex items-center gap-1.5 text-[11px]">
+                                          <span className="border border-[#d8ccb8] bg-[#f8f2e7] px-2 py-0.5 text-[#6f592b]">
+                                            {titleCase(citation.section || 'claim')}
+                                          </span>
+                                          <span className="border border-[#cdb483] bg-[#f3e6cc] px-2 py-0.5 text-[#5f4316]">
+                                            {toPercent(citation.relevance_score || 0)}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <p className="mt-2 border-l-2 border-[#d2c2a6] bg-[#fcf8f0] p-2 text-xs italic text-[#5f4a23]">
+                                        &quot;{citation.claim_text}&quot;
+                                      </p>
+
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => void copyCitation(citation.paper_id, citation.claim_text)}
+                                          className="inline-flex items-center gap-1 border border-[#d8ccb8] bg-[#f7f0e2] px-2 py-1 text-xs text-[#4d3b1d] transition-colors hover:bg-[#eddcbc]"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                          Copy
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => void jumpToCitation(citation.paper_id, citation.claim_text)}
+                                          disabled={isCurrentCitation}
+                                          className="inline-flex items-center gap-1 border border-[#d8ccb8] bg-[#f7f0e2] px-2 py-1 text-xs text-[#4d3b1d] transition-colors hover:bg-[#eddcbc] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          {isCurrentCitation ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          ) : (
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                          )}
+                                          Open PDF
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-[#8f7237]">No backing claims were returned for this answer.</p>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="text-xs text-[#8f7237]">{message.timestamp.toLocaleTimeString()}</div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</div>
+                        <div className="mt-2 text-xs text-[#eedcb9]">{message.timestamp.toLocaleTimeString()}</div>
+                      </>
+                    )}
+                  </div>
+
+                  {message.role === 'user' && (
+                    <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[#ac8340] bg-[#6d4f19]">
+                      <User className="h-4 w-4 text-[#fff9ef]" />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isTyping && (
+                <div className="flex gap-3">
+                  <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[#d6c29f] bg-[#f4ead8]">
+                    <Bot className="h-4 w-4 text-[#7b5b1b]" />
+                  </div>
+                  <div className="border border-[#e2d6c1] bg-[#fbf8f2] p-4 text-sm text-[#8f7237]">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Preparing structured answer and citations...
+                    </div>
                   </div>
                 </div>
-                {message.role === 'user' && (
-                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <User className="w-5 h-5 text-white" />
+              )}
+            </div>
+
+            <div className="border-t border-[#e8e1d2] p-4">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_260px]">
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-wide text-[#8f7237]">Your Question</label>
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+                      placeholder="Ask about findings, methods, gaps, or contradictions..."
+                      className="w-full border border-[#d8ccb8] bg-[#fffdfa] px-4 py-3 text-[#2f2614] focus:outline-none focus:ring-2 focus:ring-[#b89a5f]"
+                      disabled={isTyping}
+                    />
                   </div>
-                )}
-              </div>
-            ))}
-            
-            {isTyping && (
-              <div className="flex gap-3">
-                <div className="w-8 h-8 bg-[#0066ff] rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-5 h-5 text-white" />
-                </div>
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Thinking...</span>
+                  <div>
+                    <label className="mb-1 flex items-center gap-1 text-xs uppercase tracking-wide text-[#8f7237]">
+                      <Funnel className="h-3.5 w-3.5" />
+                      Optional paper filter
+                    </label>
+                    <input
+                      type="text"
+                      value={paperIdsInput}
+                      onChange={(e) => setPaperIdsInput(e.target.value)}
+                      placeholder="p1, p2, p3"
+                      className="w-full border border-[#d8ccb8] bg-[#fffdfa] px-4 py-3 text-[#2f2614] focus:outline-none focus:ring-2 focus:ring-[#b89a5f]"
+                      disabled={isTyping}
+                    />
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Input */}
-          <div className="border-t border-gray-200 p-4">
-            <div className="flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-                placeholder="Ask any question about your extracted papers..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
-                disabled={isTyping}
-              />
-              <input
-                type="text"
-                value={paperIdsInput}
-                onChange={(e) => setPaperIdsInput(e.target.value)}
-                placeholder="Optional paper_ids: p1, p2"
-                className="w-64 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
-                disabled={isTyping}
-              />
-              <button
-                onClick={() => handleSend(input)}
-                disabled={!input.trim() || isTyping}
-                className="px-6 py-3 bg-[#0066ff] text-white rounded-lg hover:bg-[#0052cc] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Capabilities */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Assistant Capabilities</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-blue-600 font-medium">1</span>
-              </div>
-              <div>
-                <div className="font-medium text-gray-900 mb-1">Contradiction Analysis</div>
-                <p className="text-sm text-gray-600">
-                  Ask direct questions about conflicting findings across extracted papers
-                </p>
+                <button
+                  onClick={() => handleSend(input)}
+                  disabled={!input.trim() || isTyping}
+                  className="inline-flex items-center gap-2 border border-[#8f6a2a] bg-[#7f5d1d] px-5 py-2.5 text-sm font-semibold text-[#fff9ef] transition-colors hover:bg-[#6d4f19] disabled:cursor-not-allowed disabled:border-[#d2c2a6] disabled:bg-[#d2c2a6]"
+                >
+                  <Send className="h-4 w-4" />
+                  Send question
+                </button>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-green-600 font-medium">2</span>
-              </div>
-              <div>
-                <div className="font-medium text-gray-900 mb-1">Trigger Workflows</div>
-                <p className="text-sm text-gray-600">
-                  Limit context using optional paper IDs when you need focused answers
-                </p>
-              </div>
-            </div>
+        <div className="space-y-4">
+          <Card className="border-[#d8ccb8] bg-white/95">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-[#2f2614]">Response Policy</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-[#6f592b]">
+              <p>1. Answer is shown in formatted reading mode.</p>
+              <p>2. Citations appear afterward in an evidence block.</p>
+              <p>3. Citation cards include section, relevance, and PDF jump actions.</p>
+            </CardContent>
+          </Card>
 
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-purple-600 font-medium">3</span>
-              </div>
-              <div>
-                <div className="font-medium text-gray-900 mb-1">Research Insights</div>
-                <p className="text-sm text-gray-600">
-                  Get corpus-level summaries, method comparisons, and gap analysis
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-orange-600 font-medium">4</span>
-              </div>
-              <div>
-                <div className="font-medium text-gray-900 mb-1">Context-Aware Help</div>
-                <p className="text-sm text-gray-600">
-                  Responses include cited/context paper IDs and backend mode details
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Card className="border-[#d8ccb8] bg-white/95">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-[#2f2614]">Tips For Better Questions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-[#6f592b]">
+              <p>Ask for a structure, like key findings, caveats, and next steps.</p>
+              <p>Constrain by paper IDs when comparing specific works.</p>
+              <p>Request contradictions with reasons, not only a list.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
