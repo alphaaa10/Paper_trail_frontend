@@ -1,5 +1,22 @@
 // API Configuration
-const API_BASE_URL = 'http://127.0.0.1:8000';
+export const LOCAL_API_BASE_URL = 'http://127.0.0.1:8000';
+export const NGROK_API_BASE_URL = 'https://cdc4-103-218-100-74.ngrok-free.app';
+export const API_BASE_URL_STORAGE_KEY = 'api-base-url';
+
+export function getConfiguredApiBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return LOCAL_API_BASE_URL;
+  }
+
+  const saved = window.localStorage.getItem(API_BASE_URL_STORAGE_KEY);
+  if (saved === NGROK_API_BASE_URL || saved === LOCAL_API_BASE_URL) {
+    return saved;
+  }
+
+  return LOCAL_API_BASE_URL;
+}
+
+const API_BASE_URL = getConfiguredApiBaseUrl();
 const REQUEST_CACHE_TTL_MS = 5 * 60 * 1000;
 
 interface ApiErrorResponse {
@@ -598,6 +615,40 @@ export interface DebateDetailResponse {
   structured_debate?: StructuredDebatePairResult;
 }
 
+export interface BrowseStartRequest {
+  session_id?: string;
+}
+
+export interface BrowseStartResponse {
+  session_id: string;
+  queries: string[];
+}
+
+export interface BrowseRunResponse {
+  session_id: string;
+  status: string;
+}
+
+export interface BrowseStatusPaper {
+  paper_id: string;
+  title: string;
+  url?: string;
+}
+
+export interface BrowseStatusResponse {
+  session_id: string;
+  status: string;
+  current_url: string;
+  raw_xml?: string;
+  rendered_html?: string;
+  screenshot_base64: string;
+  rendered_html_base64?: string;
+  papers_found: BrowseStatusPaper[];
+  log: string[];
+  queries_done: number;
+  queries_total: number;
+}
+
 export interface BrowseSessionsResponse {
   sessions: Array<{
     session_id: string;
@@ -608,51 +659,26 @@ export interface BrowseSessionsResponse {
   total: number;
 }
 
-export interface CrawlVisualStartRequest {
-  session_id?: string;
-  query: string;
-  max_papers?: number;
-  limit_per_source?: number;
-}
-
-export interface CrawlVisualStartResponse {
-  session_id: string;
-}
-
-export interface CrawlVisualPaper {
+export interface TimelinePaper {
   paper_id: string;
   title: string;
-  status: string;
+  year: string;
+  contribution: string;
+  methods: string[];
+  claims: string[];
 }
 
-export interface CrawlVisualStatusResponse {
-  session_id?: string;
-  status?: string;
-  phase?: string;
-  current_url?: string;
-  url?: string;
-  screenshot_base64?: string;
-  screenshot_b64?: string;
-  screenshot?: string;
-  logs?: unknown[];
-  papers_discovered?: unknown[];
-  discovered?: number;
-  downloaded?: number;
-  extracted?: number;
-  failed?: number;
+export interface TimelineResponse {
+  years: string[];
+  papers: TimelinePaper[];
+  papers_by_year: Record<string, TimelinePaper[]>;
+  total_papers: number;
+  year_range: {
+    earliest: string;
+    latest: string;
+  };
 }
 
-export interface CrawlVisualSessionSummary {
-  session_id: string;
-  status?: string;
-  query?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface CrawlVisualSessionsResponse {
-  sessions: CrawlVisualSessionSummary[];
-}
 
 async function ensureResponseOk(response: Response): Promise<void> {
   if (response.ok) {
@@ -672,17 +698,22 @@ async function ensureResponseOk(response: Response): Promise<void> {
   throw new Error(detail);
 }
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string, options?: { skipCache?: boolean }): Promise<T> {
+  const skipCache = options?.skipCache === true;
   const key = buildCacheKey('GET', path);
-  const cached = getCachedValue<T>(key);
-  if (cached) {
-    return cached;
+  if (!skipCache) {
+    const cached = getCachedValue<T>(key);
+    if (cached) {
+      return cached;
+    }
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`);
   await ensureResponseOk(response);
   const parsed = (await response.json()) as T;
-  setCachedValue(key, parsed);
+  if (!skipCache) {
+    setCachedValue(key, parsed);
+  }
   return parsed;
 }
 
@@ -2137,24 +2168,25 @@ export const api = {
   },
 
   getBrowseSessions(): Promise<BrowseSessionsResponse> {
-    return getJson<BrowseSessionsResponse>('/browse/sessions');
+    return getJson<BrowseSessionsResponse>('/browse/sessions', { skipCache: true });
   },
 
-  crawlVisualStart(payload: CrawlVisualStartRequest): Promise<CrawlVisualStartResponse> {
-    return postJson<CrawlVisualStartRequest, CrawlVisualStartResponse>('/crawl-visual/start', payload);
+  getTimeline(): Promise<TimelineResponse> {
+    return getJson<TimelineResponse>('/timeline', { skipCache: true });
   },
 
-  crawlVisualRun(sessionId: string): Promise<unknown> {
+  browseStart(payload?: BrowseStartRequest): Promise<BrowseStartResponse> {
+    return postJson<BrowseStartRequest | undefined, BrowseStartResponse>('/browse/start', payload);
+  },
+
+  browseRun(sessionId: string): Promise<BrowseRunResponse> {
     const encodedSessionId = encodeURIComponent(sessionId);
-    return postJson<undefined, unknown>(`/crawl-visual/run/${encodedSessionId}`);
+    return postJson<undefined, BrowseRunResponse>(`/browse/run/${encodedSessionId}`);
   },
 
-  crawlVisualStatus(sessionId: string): Promise<CrawlVisualStatusResponse> {
+  browseStatus(sessionId: string): Promise<BrowseStatusResponse> {
     const encodedSessionId = encodeURIComponent(sessionId);
-    return getJson<CrawlVisualStatusResponse>(`/crawl-visual/status/${encodedSessionId}`);
+    return getJson<BrowseStatusResponse>(`/browse/status/${encodedSessionId}`, { skipCache: true });
   },
 
-  crawlVisualSessions(): Promise<CrawlVisualSessionsResponse> {
-    return getJson<CrawlVisualSessionsResponse>('/crawl-visual/sessions');
-  },
 };

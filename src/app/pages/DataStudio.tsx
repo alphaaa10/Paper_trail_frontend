@@ -60,7 +60,7 @@ export function DataStudio() {
   const persistedState = loadPersistedState();
   const [query, setQuery] = useState(persistedState?.query ?? '');
   const [maxPapers, setMaxPapers] = useState(persistedState?.maxPapers ?? 10);
-  const [useVisualCrawl, setUseVisualCrawl] = useState(true);
+  const [useVisualCrawl, setUseVisualCrawl] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
   const [logs, setLogs] = useState<string[]>(persistedState?.logs ?? []);
   const [papers, setPapers] = useState<PaperRow[]>(
@@ -98,7 +98,7 @@ export function DataStudio() {
 
   const handleCrawl = async () => {
     if (useVisualCrawl) {
-      navigate('/crawl-visual', {
+      navigate('/browse-visual', {
         state: {
           query,
           maxPapers,
@@ -128,28 +128,9 @@ export function DataStudio() {
         `[${new Date().toLocaleTimeString()}] Saved: ${response.saved} | Skipped: ${response.skipped} | Failed: ${response.failed}`,
       ];
 
-      // Extract saved papers from crawl results
-      const savedPapers: PaperRow[] = response.results
-        .filter((result) => result.status === 'saved')
-        .map((result) => ({
-          paper_id: result.paper_id,
-          title: `Research Paper ${result.paper_id.substring(0, 8)}`,
-          year: new Date().getFullYear().toString(),
-          source: 'crawled',
-          pdf_path: result.pdf_path,
-          metadata_path: result.metadata_path,
-          extracted: false,
-        }));
-
-      // Add saved papers to the list and track failures
-      if (savedPapers.length > 0) {
-        setPapers((prev) => {
-          const existingIds = new Set(prev.map((p) => p.paper_id));
-          const newPapers = savedPapers.filter((p) => !existingIds.has(p.paper_id));
-          return [...prev, ...newPapers];
-        });
+      if (response.saved > 0) {
         newLogs.push(
-          `[${new Date().toLocaleTimeString()}] Added ${savedPapers.length} new papers to your collection`,
+          `[${new Date().toLocaleTimeString()}] Added ${response.saved} new papers to your collection`,
         );
       }
 
@@ -168,6 +149,7 @@ export function DataStudio() {
       }
 
       setLogs(newLogs);
+      await loadPapers();
     } catch (error) {
       const fallbackResponse = buildFallbackCrawlResponse({
         question: query,
@@ -181,10 +163,6 @@ export function DataStudio() {
         `[${new Date().toLocaleTimeString()}] Saved: ${fallbackResponse.saved} | Failed: ${fallbackResponse.failed}`,
       ]);
     } finally {
-      // Only call loadPapers if there were no new papers from crawl response
-      if (papers.length === 0) {
-        await loadPapers();
-      }
       setIsCrawling(false);
     }
   };

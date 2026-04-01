@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Bell, Moon, Sun, User } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
+import {
+  API_BASE_URL_STORAGE_KEY,
+  LOCAL_API_BASE_URL,
+  NGROK_API_BASE_URL,
+  getConfiguredApiBaseUrl,
+} from '../utils/api';
 
 export function TopBar() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [apiBaseUrl, setApiBaseUrl] = useState(getConfiguredApiBaseUrl);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
@@ -20,16 +27,39 @@ export function TopBar() {
     setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
   }, []);
 
+  const environmentLabel = apiBaseUrl === NGROK_API_BASE_URL ? 'Ngrok' : 'Localhost';
+
+  const handleApiBaseChange = (value: string) => {
+    if (value !== LOCAL_API_BASE_URL && value !== NGROK_API_BASE_URL) {
+      return;
+    }
+
+    setApiBaseUrl(value);
+    window.localStorage.setItem(API_BASE_URL_STORAGE_KEY, value);
+    window.location.reload();
+  };
+
   return (
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-4">
         <StatusBadge status="healthy" />
         <div className="hidden sm:block text-sm text-muted-foreground">
-          Workspace: <span className="font-medium text-foreground">Production</span>
+          Workspace: <span className="font-medium text-foreground">{environmentLabel}</span>
         </div>
       </div>
       
       <div className="flex items-center gap-4">
+        <select
+          value={apiBaseUrl}
+          onChange={(event) => handleApiBaseChange(event.target.value)}
+          className="hidden sm:block px-2 py-1 text-sm border border-border bg-muted"
+          aria-label="API environment"
+          title="API environment"
+        >
+          <option value={LOCAL_API_BASE_URL}>Localhost</option>
+          <option value={NGROK_API_BASE_URL}>Ngrok</option>
+        </select>
+
         <button
           type="button"
           onClick={() => setIsDark((prev) => !prev)}

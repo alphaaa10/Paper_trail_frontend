@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '../components/Card';
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
-
-interface ApiErrorResponse {
-  detail?: string;
-}
+import { api } from '../utils/api';
+import { fallbackTimelineResponse } from '../utils/fallbackData';
 
 interface TimelinePaper {
   paper_id: string;
@@ -69,24 +65,6 @@ function toYear(value: unknown): number | null {
   return null;
 }
 
-async function ensureResponseOk(response: Response): Promise<void> {
-  if (response.ok) {
-    return;
-  }
-
-  let detail = `API error: ${response.status}`;
-  try {
-    const payload = (await response.json()) as ApiErrorResponse;
-    if (payload?.detail) {
-      detail = payload.detail;
-    }
-  } catch {
-    // Keep default error message when payload is not JSON.
-  }
-
-  throw new Error(detail);
-}
-
 function normalizeTimelinePapers(raw: unknown): TimelinePaper[] {
   const payload = asRecord(raw);
   const list = Array.isArray(raw)
@@ -136,6 +114,7 @@ export function Timeline() {
   const [papers, setPapers] = useState<TimelinePaper[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUsingFallback, setIsUsingFallback] = useState(false);
   const [expandedEvidence, setExpandedEvidence] = useState<Record<string, boolean>>({});
   const yearRefs = useRef<Record<number, HTMLElement | null>>({});
 
@@ -143,16 +122,18 @@ export function Timeline() {
     const loadTimeline = async () => {
       setIsLoading(true);
       setError(null);
+      setIsUsingFallback(false);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/timeline`);
-        await ensureResponseOk(response);
-        const payload = (await response.json()) as unknown;
+        const payload = await api.getTimeline();
         setPapers(normalizeTimelinePapers(payload));
       } catch (loadError) {
         const detail = loadError instanceof Error ? loadError.message : 'Failed to load timeline.';
-        setError(detail);
-        setPapers([]);
+        setPapers(normalizeTimelinePapers(fallbackTimelineResponse));
+        setIsUsingFallback(true);
+        setError(
+          `Live timeline is unavailable (${detail}). Showing sample timeline data.`,
+        );
       } finally {
         setIsLoading(false);
       }
@@ -197,12 +178,68 @@ export function Timeline() {
     });
   };
 
+  const renderTimelineCard = (paper: TimelinePaper, evidenceExpanded: boolean) => (
+    <Card className="w-full">
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-base font-semibold text-gray-900 break-words">{paper.title}</h3>
+          <p className="text-base leading-relaxed text-gray-900 font-medium break-words">
+            {paper.contribution || 'Contribution summary unavailable.'}
+          </p>
+        </div>
+
+        {paper.methods.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {paper.methods.map((method, methodIndex) => (
+              <span
+                key={`${paper.paper_id}-${method}-${methodIndex}`}
+                className="px-2.5 py-1 text-xs rounded-full border border-border bg-muted text-muted-foreground"
+              >
+                {method}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div>
+          <button
+            type="button"
+            onClick={() => toggleEvidence(paper.paper_id)}
+            className="px-3 py-2 text-sm bg-[#0066ff] text-white hover:bg-[#0052cc] transition-colors rounded"
+          >
+            {evidenceExpanded ? 'Hide Evidence' : 'View Evidence'}
+          </button>
+
+          {evidenceExpanded && (
+            <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
+              {paper.claims.length > 0 ? (
+                paper.claims.map((claim, claimIndex) => (
+                  <li key={`${paper.paper_id}-claim-${claimIndex}`}>{claim}</li>
+                ))
+              ) : (
+                <li>No evidence claims available for this paper.</li>
+              )}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="space-y-6 w-full max-w-7xl">
+    <div className="space-y-6 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Research Timeline</h1>
         <p className="text-gray-600 mt-1">{papers.length} papers · {earliest} — {latest}</p>
       </div>
+
+      {isUsingFallback && error && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent>
+            <p className="text-sm text-amber-900">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {years.length > 0 && (
         <div className="overflow-x-auto pb-2">
@@ -224,9 +261,9 @@ export function Timeline() {
       {isLoading && (
         <div className="space-y-4">
           {[0, 1, 2, 3].map((index) => (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_88px_1fr] gap-4 items-start">
-              <div className={index % 2 === 0 ? '' : 'md:hidden'}>
-                <Card className="animate-pulse">
+            <div key={index} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)] gap-4 items-start">
+              <div className="md:hidden">
+                <Card className="animate-pulse w-full">
                   <CardContent className="space-y-3">
                     <div className="h-4 bg-gray-200 rounded w-2/3"></div>
                     <div className="h-4 bg-gray-200 rounded w-full"></div>
@@ -237,23 +274,40 @@ export function Timeline() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+              <div className="hidden md:block min-w-0">
+                {index % 2 === 0 && (
+                  <Card className="animate-pulse w-full">
+                    <CardContent className="space-y-3">
+                      <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                      <div className="h-4 bg-gray-200 rounded w-full"></div>
+                      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                      <div className="flex gap-2">
+                        <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                        <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
               <div className="hidden md:block relative min-h-[160px]">
                 <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-px bg-border"></div>
                 <div className="absolute left-1/2 top-10 -translate-x-1/2 w-3 h-3 rounded-full bg-border"></div>
               </div>
-              <div className={index % 2 === 1 ? '' : 'md:hidden'}>
-                <Card className="animate-pulse">
-                  <CardContent className="space-y-3">
-                    <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                    <div className="h-4 bg-gray-200 rounded w-full"></div>
-                    <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-                    <div className="flex gap-2">
-                      <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-                      <div className="h-6 bg-gray-200 rounded-full w-20"></div>
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="hidden md:block min-w-0">
+                {index % 2 === 1 && (
+                  <Card className="animate-pulse w-full">
+                    <CardContent className="space-y-3">
+                      <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                      <div className="h-4 bg-gray-200 rounded w-full"></div>
+                      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                      <div className="flex gap-2">
+                        <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                        <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           ))}
@@ -264,7 +318,7 @@ export function Timeline() {
         <Card>
           <CardContent>
             <p className="text-gray-600">No papers extracted yet. Run a crawl first.</p>
-            {error && <p className="text-sm text-amber-700 mt-2">{error}</p>}
+            {error && !isUsingFallback && <p className="text-sm text-amber-700 mt-2">{error}</p>}
           </CardContent>
         </Card>
       )}
@@ -279,7 +333,7 @@ export function Timeline() {
               }}
               className="space-y-5"
             >
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_88px_1fr] gap-4 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)] gap-4 items-center">
                 <div></div>
                 <div className="relative h-16 flex items-center justify-center">
                   <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-px bg-border"></div>
@@ -299,53 +353,13 @@ export function Timeline() {
                   const evidenceExpanded = Boolean(expandedEvidence[paper.paper_id]);
 
                   return (
-                    <div key={paper.paper_id} className="grid grid-cols-1 md:grid-cols-[1fr_88px_1fr] gap-4 items-start">
-                      <div className={isLeft ? '' : 'md:hidden'}>
-                        <Card>
-                          <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                              <h3 className="text-base font-semibold text-gray-900">{paper.title}</h3>
-                              <p className="text-base leading-relaxed text-gray-900 font-medium">
-                                {paper.contribution || 'Contribution summary unavailable.'}
-                              </p>
-                            </div>
+                    <div key={paper.paper_id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)] gap-4 items-start">
+                      <div className="md:hidden min-w-0">
+                        {renderTimelineCard(paper, evidenceExpanded)}
+                      </div>
 
-                            {paper.methods.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {paper.methods.map((method, methodIndex) => (
-                                  <span
-                                    key={`${paper.paper_id}-${method}-${methodIndex}`}
-                                    className="px-2.5 py-1 text-xs rounded-full border border-border bg-muted text-muted-foreground"
-                                  >
-                                    {method}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => toggleEvidence(paper.paper_id)}
-                                className="px-3 py-2 text-sm bg-[#0066ff] text-white hover:bg-[#0052cc] transition-colors rounded"
-                              >
-                                {evidenceExpanded ? 'Hide Evidence' : 'View Evidence'}
-                              </button>
-
-                              {evidenceExpanded && (
-                                <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
-                                  {paper.claims.length > 0 ? (
-                                    paper.claims.map((claim, claimIndex) => (
-                                      <li key={`${paper.paper_id}-claim-${claimIndex}`}>{claim}</li>
-                                    ))
-                                  ) : (
-                                    <li>No evidence claims available for this paper.</li>
-                                  )}
-                                </ul>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+                      <div className="hidden md:block min-w-0">
+                        {isLeft ? renderTimelineCard(paper, evidenceExpanded) : <div aria-hidden="true" />}
                       </div>
 
                       <div className="hidden md:block relative min-h-[220px]">
@@ -358,54 +372,8 @@ export function Timeline() {
                         )}
                       </div>
 
-                      <div className={isLeft ? 'md:hidden' : ''}>
-                        {!isLeft && (
-                          <Card>
-                            <CardContent className="space-y-4">
-                              <div className="space-y-2">
-                                <h3 className="text-base font-semibold text-gray-900">{paper.title}</h3>
-                                <p className="text-base leading-relaxed text-gray-900 font-medium">
-                                  {paper.contribution || 'Contribution summary unavailable.'}
-                                </p>
-                              </div>
-
-                              {paper.methods.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                  {paper.methods.map((method, methodIndex) => (
-                                    <span
-                                      key={`${paper.paper_id}-${method}-${methodIndex}`}
-                                      className="px-2.5 py-1 text-xs rounded-full border border-border bg-muted text-muted-foreground"
-                                    >
-                                      {method}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleEvidence(paper.paper_id)}
-                                  className="px-3 py-2 text-sm bg-[#0066ff] text-white hover:bg-[#0052cc] transition-colors rounded"
-                                >
-                                  {evidenceExpanded ? 'Hide Evidence' : 'View Evidence'}
-                                </button>
-
-                                {evidenceExpanded && (
-                                  <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
-                                    {paper.claims.length > 0 ? (
-                                      paper.claims.map((claim, claimIndex) => (
-                                        <li key={`${paper.paper_id}-claim-${claimIndex}`}>{claim}</li>
-                                      ))
-                                    ) : (
-                                      <li>No evidence claims available for this paper.</li>
-                                    )}
-                                  </ul>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )}
+                      <div className="hidden md:block min-w-0">
+                        {!isLeft ? renderTimelineCard(paper, evidenceExpanded) : <div aria-hidden="true" />}
                       </div>
                     </div>
                   );

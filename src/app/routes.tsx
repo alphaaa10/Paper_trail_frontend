@@ -23,7 +23,7 @@ export const router = createBrowserRouter([
       { path: 'reports', Component: Reports },
       { path: 'ai-assistant', Component: AIAssistant },
       { path: 'browse-research', Component: BrowseResearch },
-      { path: 'crawl-visual', Component: CrawlVisual },
+      { path: 'browse-visual', Component: CrawlVisual },
       { path: 'timeline', Component: Timeline },
     ],
   },

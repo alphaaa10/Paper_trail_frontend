@@ -8,6 +8,7 @@ import {
   HeatmapResponse,
   LatestReportResponse,
   ListPapersResponse,
+  TimelineResponse,
 } from './api';
 
 export const fallbackPaperIds = [
@@ -151,6 +152,123 @@ export const fallbackAnalyzeResponse: AnalyzeResponse = {
   claim_count: 90,
   contradiction_count: 6,
   gaps: ['Several contradictory claims need manual verification.'],
+};
+
+export const fallbackTimelineResponse: TimelineResponse = {
+  years: ['2023', '2024', '2025'],
+  papers: [
+    {
+      paper_id: 'paper_timeline_001',
+      title: 'Cyberbullying Risk and Mental Health Outcomes Among Sexual Minority College Students',
+      year: '2025',
+      contribution:
+        'This study reports elevated cyberbullying exposure and associated increases in depressive symptoms and suicide risk indicators in vulnerable student populations.',
+      methods: ['propensity score matching', 'causal mediation analysis', 'survey research'],
+      claims: [
+        'Sexual minority students in the sample reported higher cyberbullying incidence than peers.',
+        'Cyberbullying exposure was associated with significantly higher depression scores.',
+        'Mediation analysis suggested social support partially reduced adverse outcomes.',
+      ],
+    },
+    {
+      paper_id: 'paper_timeline_002',
+      title: 'Association Between Posting WeChat Moments and Depressive Symptoms in Middle-Aged and Older Adults',
+      year: '2025',
+      contribution:
+        'Frequent social posting behavior was correlated with depressive symptom patterns, with effects varying by social engagement and offline support.',
+      methods: ['longitudinal survey', 'regression analysis'],
+      claims: [
+        'Higher posting frequency was linked to elevated symptom scores in low-support cohorts.',
+        'Participants with high offline support showed weaker negative associations.',
+      ],
+    },
+    {
+      paper_id: 'paper_timeline_003',
+      title: 'Systematic Review of Digital Harassment Interventions in University Settings',
+      year: '2024',
+      contribution:
+        'The review identified intervention strategies with strongest evidence around peer-led reporting workflows and rapid counseling referral.',
+      methods: ['systematic review', 'evidence grading'],
+      claims: [
+        'Interventions combining reporting and counseling had higher adoption rates.',
+        'Most studies lacked long-term follow-up beyond one semester.',
+      ],
+    },
+    {
+      paper_id: 'paper_timeline_004',
+      title: 'Cross-Campus Benchmark for Early Warning Signals of Student Mental Health Deterioration',
+      year: '2023',
+      contribution:
+        'This benchmark introduced a reproducible protocol for comparing early warning models across multiple institutions.',
+      methods: ['benchmarking', 'time-series modeling'],
+      claims: [
+        'Temporal models outperformed static baselines for short-term risk prediction.',
+        'Data drift across campuses significantly reduced transfer performance.',
+      ],
+    },
+  ],
+  papers_by_year: {
+    '2023': [
+      {
+        paper_id: 'paper_timeline_004',
+        title: 'Cross-Campus Benchmark for Early Warning Signals of Student Mental Health Deterioration',
+        year: '2023',
+        contribution:
+          'This benchmark introduced a reproducible protocol for comparing early warning models across multiple institutions.',
+        methods: ['benchmarking', 'time-series modeling'],
+        claims: [
+          'Temporal models outperformed static baselines for short-term risk prediction.',
+          'Data drift across campuses significantly reduced transfer performance.',
+        ],
+      },
+    ],
+    '2024': [
+      {
+        paper_id: 'paper_timeline_003',
+        title: 'Systematic Review of Digital Harassment Interventions in University Settings',
+        year: '2024',
+        contribution:
+          'The review identified intervention strategies with strongest evidence around peer-led reporting workflows and rapid counseling referral.',
+        methods: ['systematic review', 'evidence grading'],
+        claims: [
+          'Interventions combining reporting and counseling had higher adoption rates.',
+          'Most studies lacked long-term follow-up beyond one semester.',
+        ],
+      },
+    ],
+    '2025': [
+      {
+        paper_id: 'paper_timeline_001',
+        title: 'Cyberbullying Risk and Mental Health Outcomes Among Sexual Minority College Students',
+        year: '2025',
+        contribution:
+          'This study reports elevated cyberbullying exposure and associated increases in depressive symptoms and suicide risk indicators in vulnerable student populations.',
+        methods: ['propensity score matching', 'causal mediation analysis', 'survey research'],
+        claims: [
+          'Sexual minority students in the sample reported higher cyberbullying incidence than peers.',
+          'Cyberbullying exposure was associated with significantly higher depression scores.',
+          'Mediation analysis suggested social support partially reduced adverse outcomes.',
+        ],
+      },
+      {
+        paper_id: 'paper_timeline_002',
+        title: 'Association Between Posting WeChat Moments and Depressive Symptoms in Middle-Aged and Older Adults',
+        year: '2025',
+        contribution:
+          'Frequent social posting behavior was correlated with depressive symptom patterns, with effects varying by social engagement and offline support.',
+        methods: ['longitudinal survey', 'regression analysis'],
+        claims: [
+          'Higher posting frequency was linked to elevated symptom scores in low-support cohorts.',
+          'Participants with high offline support showed weaker negative associations.',
+        ],
+      },
+    ],
+  },
+  total_papers: 4,
+  year_range: {
+    earliest: '2023',
+    latest: '2025',
+  },
 };
 
 export const fallbackReportResponse: LatestReportResponse = {

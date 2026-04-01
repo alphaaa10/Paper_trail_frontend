@@ -4,6 +4,7 @@ import { Play, X, Loader2 } from 'lucide-react';
 import {
   api,
   CitationResponse,
+  getConfiguredApiBaseUrl,
   getDebatePaperLabel,
   PaperSummary,
   StructuredDebateMultiResponse,
@@ -94,7 +95,7 @@ function parseDebateTurns(raw: string): DebateTurn[] {
   return turns;
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = getConfiguredApiBaseUrl();
 
 export function Investigation() {
   const [papers, setPapers] = useState<PaperSummary[]>(fallbackPapersResponse.papers);

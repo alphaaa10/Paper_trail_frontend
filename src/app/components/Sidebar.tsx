@@ -97,15 +97,15 @@ export function Sidebar({ collapsed, onToggleSidebar }: SidebarProps) {
         </div>
       </aside>
 
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-sidebar-border bg-sidebar/95 backdrop-blur">
-        <ul className="grid grid-cols-6">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-sidebar-border bg-sidebar/95 backdrop-blur overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <ul className="flex min-w-max">
           {navItems.map((item) => (
-            <li key={item.path}>
+            <li key={item.path} className="shrink-0 min-w-16">
               <NavLink
                 to={item.path}
                 end={item.exact}
                 className={({ isActive }) =>
-                  `h-14 flex items-center justify-center border-r last:border-r-0 border-sidebar-border ${
+                  `h-14 w-full flex items-center justify-center border-r last:border-r-0 border-sidebar-border ${
                     isActive ? 'text-primary bg-primary/10' : 'text-sidebar-foreground'
                   }`
                 }

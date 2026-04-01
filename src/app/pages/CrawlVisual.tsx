@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/Card';
-import { api, CrawlVisualStatusResponse } from '../utils/api';
+import { api, BrowseStatusResponse } from '../utils/api';
 
 type CrawlVisualStatus = 'idle' | 'running' | 'done' | 'error';
 type CrawlVisualPhase = 'Searching' | 'Downloading' | 'Extracting' | 'Done';
@@ -17,6 +17,48 @@ interface RouteState {
   query?: string;
   maxPapers?: number;
   limitPerSource?: number;
+}
+
+function decodeBase64Text(base64Payload: string): string {
+  if (!base64Payload) {
+    return '';
+  }
+
+  try {
+    const binary = window.atob(base64Payload);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildXmlPreviewHtml(xmlText: string): string {
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>arXiv XML Preview</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 16px; background: #f8fafc; color: #111827; }
+      h2 { margin: 0 0 12px 0; font-size: 16px; }
+      pre { margin: 0; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #ffffff; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h2>Rendered from raw XML</h2>
+    <pre>${escapeHtml(xmlText)}</pre>
+  </body>
+</html>`;
 }
 
 function normalizeLogEntry(value: unknown): string {
@@ -62,18 +104,6 @@ function normalizePaper(value: unknown): CrawlVisualPaper | null {
     title,
     status,
   };
-}
-
-function toImageSource(value: string): string {
-  if (!value) {
-    return '';
-  }
-
-  if (value.startsWith('data:image')) {
-    return value;
-  }
-
-  return `data:image/png;base64,${value}`;
 }
 
 function normalizePhase(status: CrawlVisualStatus, statusText: string, phaseText: string): CrawlVisualPhase {
@@ -123,7 +153,8 @@ export function CrawlVisual() {
   const [status, setStatus] = useState<CrawlVisualStatus>('idle');
   const [phase, setPhase] = useState<CrawlVisualPhase>('Searching');
   const [currentUrl, setCurrentUrl] = useState('');
-  const [screenshotBase64, setScreenshotBase64] = useState('');
+  const [rawSnapshot, setRawSnapshot] = useState('');
+  const [renderedSnapshot, setRenderedSnapshot] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
   const [papers, setPapers] = useState<CrawlVisualPaper[]>([]);
   const [stats, setStats] = useState({ discovered: 0, downloaded: 0, extracted: 0, failed: 0 });
@@ -136,7 +167,7 @@ export function CrawlVisual() {
     }
   }, []);
 
-  const applyStatusResponse = useCallback((payload: CrawlVisualStatusResponse) => {
+  const applyStatusResponse = useCallback((payload: BrowseStatusResponse) => {
     const normalizedStatus = (payload.status || '').toLowerCase();
     const nextStatus: CrawlVisualStatus = normalizedStatus === 'done'
       ? 'done'
@@ -149,55 +180,44 @@ export function CrawlVisual() {
       clearPollTimer();
     }
 
-    const phaseValue = normalizePhase(nextStatus, payload.status || '', payload.phase || '');
+    const statusText = payload.status || '';
+    const phaseValue = normalizePhase(nextStatus, statusText, '');
     setPhase(phaseValue);
 
-    setCurrentUrl(payload.current_url || payload.url || '');
+    setCurrentUrl(payload.current_url || '');
+    const rawXml = payload.raw_xml || decodeBase64Text(payload.screenshot_base64 || '');
+    const renderedHtml = payload.rendered_html || decodeBase64Text(payload.rendered_html_base64 || '');
+    setRawSnapshot(rawXml);
+    setRenderedSnapshot(renderedHtml);
 
-    const screenshot = payload.screenshot_base64 || payload.screenshot_b64 || payload.screenshot || '';
-    setScreenshotBase64(screenshot);
-
-    const normalizedLogs = Array.isArray(payload.logs)
-      ? payload.logs.map(normalizeLogEntry).filter(Boolean)
+    const normalizedLogs = Array.isArray(payload.log)
+      ? payload.log.map(normalizeLogEntry).filter(Boolean)
       : [];
     setLogs(normalizedLogs);
 
-    const normalizedPapers = Array.isArray(payload.papers_discovered)
-      ? payload.papers_discovered.map(normalizePaper).filter((item): item is CrawlVisualPaper => item !== null)
+    const normalizedPapers = Array.isArray(payload.papers_found)
+      ? payload.papers_found.map(normalizePaper).filter((item): item is CrawlVisualPaper => item !== null)
       : [];
     setPapers(normalizedPapers);
 
-    const discoveredCount = typeof payload.discovered === 'number'
-      ? payload.discovered
-      : normalizedPapers.length;
-    const downloadedCount = typeof payload.downloaded === 'number'
-      ? payload.downloaded
-      : normalizedPapers.filter((paper) => paper.status === 'saved' || paper.status === 'extracted').length;
-    const extractedCount = typeof payload.extracted === 'number'
-      ? payload.extracted
-      : normalizedPapers.filter((paper) => paper.status === 'extracted').length;
-    const failedCount = typeof payload.failed === 'number'
-      ? payload.failed
-      : normalizedPapers.filter((paper) => paper.status === 'failed').length;
-
     setStats({
-      discovered: discoveredCount,
-      downloaded: downloadedCount,
-      extracted: extractedCount,
-      failed: failedCount,
+      discovered: normalizedPapers.length,
+      downloaded: normalizedPapers.filter((p) => p.status === 'saved' || p.status === 'extracted').length,
+      extracted: normalizedPapers.filter((p) => p.status === 'extracted').length,
+      failed: normalizedPapers.filter((p) => p.status === 'failed').length,
     });
 
-    if (nextStatus === 'error' && !error) {
-      setError('Crawl visual session failed.');
+    if (nextStatus === 'error') {
+      setError((prev) => prev ?? 'Browse session failed.');
     }
-  }, [clearPollTimer, error]);
+  }, [clearPollTimer]);
 
   const pollStatus = useCallback(async (activeSessionId: string) => {
     try {
-      const payload = await api.crawlVisualStatus(activeSessionId);
+      const payload = await api.browseStatus(activeSessionId);
       applyStatusResponse(payload);
     } catch (pollError) {
-      const detail = pollError instanceof Error ? pollError.message : 'Failed to poll crawl visual status.';
+      const detail = pollError instanceof Error ? pollError.message : 'Failed to poll browse status.';
       setError(detail);
       setStatus('error');
       clearPollTimer();
@@ -211,28 +231,24 @@ export function CrawlVisual() {
     setStatus('running');
     setPhase('Searching');
     setCurrentUrl('');
-    setScreenshotBase64('');
+    setRawSnapshot('');
+    setRenderedSnapshot('');
     setLogs([]);
     setPapers([]);
     setStats({ discovered: 0, downloaded: 0, extracted: 0, failed: 0 });
 
     try {
-      const startPayload = await api.crawlVisualStart({
-        session_id: '',
-        query,
-        max_papers: maxPapers,
-        limit_per_source: limitPerSource,
-      });
+      const startPayload = await api.browseStart();
       setSessionId(startPayload.session_id);
 
-      await api.crawlVisualRun(startPayload.session_id);
+      await api.browseRun(startPayload.session_id);
       await pollStatus(startPayload.session_id);
 
       pollTimerRef.current = window.setInterval(() => {
         void pollStatus(startPayload.session_id);
       }, 1500);
     } catch (startError) {
-      const detail = startError instanceof Error ? startError.message : 'Failed to start crawl visual session.';
+      const detail = startError instanceof Error ? startError.message : 'Failed to start browse session.';
       setError(detail);
       setStatus('error');
       clearPollTimer();
@@ -243,16 +259,17 @@ export function CrawlVisual() {
     if (!query) {
       setStatus('error');
       setError('No query provided. Start from Data Studio with a search query.');
-      return;
     }
 
-    void startRun();
     return () => {
       clearPollTimer();
     };
-  }, [clearPollTimer, query, startRun]);
+  }, [clearPollTimer, query]);
 
-  const screenshotSource = useMemo(() => toImageSource(screenshotBase64), [screenshotBase64]);
+  const renderedDoc = useMemo(
+    () => renderedSnapshot || (rawSnapshot ? buildXmlPreviewHtml(rawSnapshot) : ''),
+    [rawSnapshot, renderedSnapshot],
+  );
   const recentLogs = useMemo(() => logs.slice(-8).reverse(), [logs]);
 
   return (
@@ -265,13 +282,13 @@ export function CrawlVisual() {
           <p className="text-xs text-gray-500 mt-1">Max papers: {maxPapers} | Limit/source: {limitPerSource}</p>
           {sessionId && <p className="text-xs text-gray-500 mt-1">Session: {sessionId}</p>}
         </div>
-        {(status === 'done' || status === 'error') && (
+        {query && (
           <button
             type="button"
             onClick={() => void startRun()}
             className="px-4 py-2 bg-[#0066ff] text-white hover:bg-[#0052cc] transition-colors"
           >
-            Run Again
+            {status === 'idle' ? 'Start Run' : 'Run Again'}
           </button>
         )}
       </div>
@@ -291,12 +308,16 @@ export function CrawlVisual() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="border border-gray-200 bg-gray-50 min-h-[360px] flex items-center justify-center overflow-hidden">
-              {screenshotSource ? (
-                <img src={screenshotSource} alt="Crawl visual live screenshot" className="w-full h-auto object-contain" />
+              {renderedDoc ? (
+                <iframe
+                  title="Rendered arXiv preview"
+                  srcDoc={renderedDoc}
+                  className="w-full h-[360px] bg-white"
+                />
               ) : (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   {status === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Waiting for screenshot...
+                  Waiting for rendered snapshot...
                 </div>
               )}
             </div>
