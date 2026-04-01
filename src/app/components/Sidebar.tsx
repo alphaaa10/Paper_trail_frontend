@@ -7,6 +7,7 @@ import {
   FileText,
   MessageSquare,
   Clock3,
+  PenSquare,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ const navItems = [
   { path: '/reports', label: 'Reports', icon: FileText },
   { path: '/ai-assistant', label: 'AI Assistant', icon: MessageSquare },
   { path: '/timeline', label: 'Timeline', icon: Clock3 },
+  { path: '/paper-lab', label: 'Paper Lab', icon: PenSquare },
 ];
 
 interface SidebarProps {

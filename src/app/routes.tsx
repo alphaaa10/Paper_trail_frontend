@@ -9,6 +9,7 @@ import { AIAssistant } from './pages/AIAssistant';
 import { BrowseResearch } from './pages/BrowseResearch';
 import { CrawlVisual } from './pages/CrawlVisual';
 import { Timeline } from './pages/Timeline';
+import { PaperLab } from './pages/PaperLab';
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: 'browse-research', Component: BrowseResearch },
       { path: 'browse-visual', Component: CrawlVisual },
       { path: 'timeline', Component: Timeline },
+      { path: 'paper-lab', Component: PaperLab },
     ],
   },
 ]);

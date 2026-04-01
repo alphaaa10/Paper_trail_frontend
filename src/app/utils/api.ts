@@ -679,6 +679,49 @@ export interface TimelineResponse {
   };
 }
 
+export interface MatchedPassage {
+  input_excerpt: string;
+  source_excerpt: string;
+  similarity: number;
+  section?: string;
+}
+
+export interface PlagiarismMatch {
+  paper_id: string;
+  title: string;
+  year?: string;
+  similarity: number;
+  matched_passages: MatchedPassage[];
+}
+
+export interface PlagiarismReportResponse {
+  input_file_name: string;
+  analyzed_at: string;
+  overall_similarity: number;
+  risk_level: 'low' | 'medium' | 'high';
+  summary: string;
+  top_matches: PlagiarismMatch[];
+  recommendations: string[];
+}
+
+export async function analyzeUploadedPaper(file: File): Promise<PlagiarismReportResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/feature/plagiarism/upload`, {
+    method: 'POST',
+    headers: API_BASE_URL.includes('ngrok-free.app')
+      ? {
+          'ngrok-skip-browser-warning': '1',
+        }
+      : undefined,
+    body: formData,
+  });
+
+  await ensureResponseOk(response);
+  return (await response.json()) as PlagiarismReportResponse;
+}
+
 
 async function ensureResponseOk(response: Response): Promise<void> {
   if (response.ok) {
@@ -2173,6 +2216,10 @@ export const api = {
 
   getTimeline(): Promise<TimelineResponse> {
     return getJson<TimelineResponse>('/timeline', { skipCache: true });
+  },
+
+  analyzeUploadedPaper(file: File): Promise<PlagiarismReportResponse> {
+    return analyzeUploadedPaper(file);
   },
 
   browseStart(payload?: BrowseStartRequest): Promise<BrowseStartResponse> {

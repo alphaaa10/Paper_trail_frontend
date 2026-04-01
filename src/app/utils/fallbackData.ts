@@ -8,6 +8,7 @@ import {
   HeatmapResponse,
   LatestReportResponse,
   ListPapersResponse,
+  PlagiarismReportResponse,
   TimelineResponse,
 } from './api';
 
@@ -269,6 +270,56 @@ export const fallbackTimelineResponse: TimelineResponse = {
     earliest: '2023',
     latest: '2025',
   },
+};
+
+export const fallbackPlagiarismReport: PlagiarismReportResponse = {
+  input_file_name: 'sample-user-paper.pdf',
+  analyzed_at: new Date().toISOString(),
+  overall_similarity: 31,
+  risk_level: 'medium',
+  summary:
+    'Prototype similarity scan found moderate overlap with two crawled papers, concentrated in background and method-description phrasing.',
+  top_matches: [
+    {
+      paper_id: 'paper_1ba6db38d4c86a5e',
+      title: 'Graph Neural Networks for Traffic Forecasting',
+      year: '2024',
+      similarity: 42,
+      matched_passages: [
+        {
+          input_excerpt: 'We model traffic flow with a spatiotemporal graph where edges represent road proximity.',
+          source_excerpt: 'Traffic forecasting is framed as a spatiotemporal graph problem with proximity-based connectivity.',
+          similarity: 0.81,
+          section: 'Method',
+        },
+        {
+          input_excerpt: 'The baseline comparison includes recurrent and transformer models under identical splits.',
+          source_excerpt: 'We compare graph models against recurrent and transformer baselines using the same data splits.',
+          similarity: 0.74,
+          section: 'Experiments',
+        },
+      ],
+    },
+    {
+      paper_id: 'paper_4ba6db38d4c86a5e',
+      title: 'ML Meta-Analysis for Forecast Robustness',
+      year: '2025',
+      similarity: 26,
+      matched_passages: [
+        {
+          input_excerpt: 'Prior work reports inconsistent robustness under sparse data conditions.',
+          source_excerpt: 'Meta-analysis indicates inconsistent model robustness when training data is sparse.',
+          similarity: 0.69,
+          section: 'Related Work',
+        },
+      ],
+    },
+  ],
+  recommendations: [
+    'Rewrite matched method sentences using original wording and explicit novelty claims.',
+    'Add direct citations near overlapping background statements.',
+    'Expand discussion of dataset split choices to differentiate from prior work.',
+  ],
 };
 
 export const fallbackReportResponse: LatestReportResponse = {

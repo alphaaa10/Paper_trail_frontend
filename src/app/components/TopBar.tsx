@@ -56,8 +56,8 @@ export function TopBar() {
           aria-label="API environment"
           title="API environment"
         >
-          <option value={LOCAL_API_BASE_URL}>Localhost</option>
-          <option value={NGROK_API_BASE_URL}>Ngrok</option>
+          <option value={LOCAL_API_BASE_URL}>1</option>
+          <option value={NGROK_API_BASE_URL}>0</option>
         </select>
 
         <button
